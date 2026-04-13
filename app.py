@@ -362,15 +362,29 @@ def upload_timetable():
         division = request.form.get('division', '')
         branch = request.form.get('branch', '')
         
-        sys_prompt = "You are an expert OCR timetable parser. Your job is to extract EVERY SINGLE Subject (Lecture) and Lab (Practical) from the given timetable image.\n"
-        sys_prompt += "Return a JSON object exactly like this:\n{\n  \"subjects\": [\n    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean}\n  ],\n  \"daily_schedule\": {\n    \"Monday\": [{\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\"}],\n    \"Tuesday\": [{\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\"}],\n    \"Wednesday\": [], \"Thursday\": [], \"Friday\": [], \"Saturday\": []\n  },\n  \"summary\": \"A short 2-sentence summary.\"\n}\n"
-        sys_prompt += "CRITICAL RULE: Expand short abbreviated subject names into their FULL FORMS if they match these known subjects: DM -> 'Discrete Mathematics', COM or MP -> 'Computer Org and Microprocessor', OE -> 'Open Elective', IOT -> 'Internet of Things', MIL -> 'Modern Indian Languages', WD or Web Dev -> 'Web Development', MP Lab or MPL -> 'Microprocessor Lab', EPD -> 'Engineering Product Design', EVS -> 'Environmental Studies', DBMS -> 'Database Management Systems'.\n"
-        sys_prompt += "PRACTICAL CLASSIFICATION RULE: ONLY the following subjects have Lab/Practical components: 'Database Management Systems', 'Web Development', 'Engineering Product Design', 'Microprocessor Lab', and 'Modern Indian Languages'. If you see these subjects in a 2-hour block, mark them 'Practical'. Everything else MUST be strictly classified as a 'Lecture'!\n"
-        sys_prompt += "EXCLUSION RULE: 'exclude_attendance' MUST BE FALSE for all core classes! ONLY set to true for explicitly non-academic activities like 'Mentoring' or 'NPTEL'. Do NOT set to true for Web Development, IoT, Open Elective, or any other actual subject!\n"
-        sys_prompt += "EXTRACT ALL RULE: Do NOT accidentally skip subjects! Make sure you extract EVERY SINGLE lecture and practical block shown. If the user has 9 subjects, list all 9 unique subjects.\n"
+        sys_prompt = (
+            "You are an expert OCR timetable parser extracting data to JSON.\n"
+            "Return JSON strictly in this format:\n"
+            "{\n"
+            "  \"subjects\": [\n"
+            "    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\" or \"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean}\n"
+            "  ],\n"
+            "  \"daily_schedule\": {\n"
+            "    \"Monday\": [{\"subject_name\": \"string\", \"subject_type\": \"Lecture\" or \"Practical\"}],\n"
+            "    \"Tuesday\": [{\"subject_name\": \"string\", \"subject_type\": \"Lecture\" or \"Practical\"}],\n"
+            "    \"Wednesday\": [], \"Thursday\": [], \"Friday\": [], \"Saturday\": []\n"
+            "  },\n"
+            "  \"summary\": \"A short 2-sentence summary.\"\n"
+            "}\n\n"
+            "=== CRITICAL INSTRUCTIONS ===\n"
+            "1. ACRONYMS: Expand short names (DM->Discrete Mathematics, COM/MP->Computer Org and Microprocessor, OE->Open Elective, IOT->Internet of Things, MIL->Modern Indian Languages, WD->Web Development, MPL->Microprocessor Lab, EPD->Engineering Product Design, EVS->Environmental Studies, DBMS->Database Management Systems).\n"
+            "2. MULTIPLE COMPONENTS: A subject can have BOTH a 'Lecture' (1-hour block) and a 'Practical' (2-hour block). For example, if 'WD' shows up as a 1hr slot AND a 2hr slot, you MUST output TWO separate objects in the subjects array: {\"subject_name\": \"Web Development\", \"subject_type\": \"Lecture\"} AND {\"subject_name\": \"Web Development\", \"subject_type\": \"Practical\"}. DO NOT MERGE THEM. They are separate entities.\n"
+            "3. EXCLUSIONS: `exclude_attendance` MUST BE FALSE for core academic subjects! Only set it to true for explicitly non-academic entities like Lunch, Mentoring, or NPTEL. The student MUST track attendance for everything else.\n"
+            "4. THOROUGHNESS: The user expects about 9-10 distinct subjects covering subjects and labs. Scan the entire grid. Do NOT drop or skip any class block.\n"
+        )
         
         if division or branch:
-            sys_prompt += f"EXTREMELY IMPORTANT: The user's Division is '{division}' and Batch is '{branch}'. For Practicals/Labs, ONLY extract the ones assigned to Batch '{branch}'. For Lectures, extract them since they usually apply to the whole division '{division}'. Do not aggressively filter out lectures if it doesn't explicitly mark the batch. When in doubt, ALWAYS INCLUDE it so the user can track it! DO NOT skip their core classes."
+            sys_prompt += f"5. FILTERING: The user's Division is '{division}' and Batch is '{branch}'. For 2-hour Practicals, ONLY extract the ones assigned specifically to Batch '{branch}'. However, for 1-hour Lectures, extract ALL of them because Lectures apply to the entire Division '{division}'. Do not accidentally delete their Lectures just because the batch wasn't printed next to it! ALWAYS keep core lectures.\n"
         
         response = client.chat.completions.create(
             model="gpt-4o",
