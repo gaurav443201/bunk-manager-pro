@@ -1,5 +1,6 @@
 Flask==3.0.0
 pymongo
+certifi
 Werkzeug==3.0.1
 pytest==7.4.3
 gunicorn==21.2.0

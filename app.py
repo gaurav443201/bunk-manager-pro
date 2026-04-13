@@ -7,6 +7,7 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from dotenv import load_dotenv
 from pymongo import MongoClient
+import certifi
 from bson.objectid import ObjectId
 
 load_dotenv()
@@ -29,7 +30,7 @@ threading.Thread(target=keep_awake, daemon=True).start()
 
 # MongoDB Configuration
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
-client = MongoClient(MONGO_URI)
+client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
 db = client.get_database('bunk_manager')
 subjects_collection = db.subjects
 
