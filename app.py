@@ -1,9 +1,8 @@
 import os
 import math
-import sqlite3
+import mysql.connector
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,33 +10,18 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_super_secret_key_here')
 
-DATABASE = 'database.db'
+# MySQL Database configuration
+DB_CONFIG = {
+    'host': os.environ.get('DB_HOST', 'localhost'),
+    'user': os.environ.get('DB_USER', 'root'),
+    'password': os.environ.get('DB_PASSWORD', '443201'), 
+    'database': os.environ.get('DB_NAME', 'bunk_manager'),
+    'port': int(os.environ.get('DB_PORT', 3306))
+}
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
+    conn = mysql.connector.connect(**DB_CONFIG)
     return conn
-
-def init_db():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT NOT NULL,
-                        email TEXT UNIQUE NOT NULL,
-                        password TEXT NOT NULL)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS subjects (
-                        subject_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER NOT NULL,
-                        subject_name TEXT NOT NULL,
-                        total_classes INTEGER NOT NULL DEFAULT 0,
-                        attended_classes INTEGER NOT NULL DEFAULT 0,
-                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)''')
-    conn.commit()
-    conn.close()
-
-# Initialize automatically
-init_db()
 
 def login_required(f):
     @wraps(f)
@@ -54,11 +38,6 @@ def index():
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    flash("Registration is disabled. Please use the teacher login.", "warning")
-    return redirect(url_for('login'))
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -69,6 +48,18 @@ def login():
         if email == 'gaurav443201' and password == '443201':
             session['user_id'] = 1
             session['user_name'] = 'Gaurav (Teacher)'
+            
+            # Ensure the user exists in MySQL to prevent foreign key constraint errors
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("INSERT IGNORE INTO users (id, name, email, password) VALUES (1, 'Gaurav', 'gaurav443201', '443201')")
+                conn.commit()
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                pass
+                
             flash("Logged in successfully!", "success")
             return redirect(url_for('dashboard'))
         else:
@@ -90,14 +81,14 @@ def dashboard():
     
     try:
         conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM subjects WHERE user_id = ?", (user_id,))
-        subjects_rows = cursor.fetchall()
-        subjects = [dict(row) for row in subjects_rows]
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM subjects WHERE user_id = %s", (user_id,))
+        subjects = cursor.fetchall()
     except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals():
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
             conn.close()
             
     # Process attendance logic
@@ -158,14 +149,15 @@ def add_subject():
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO subjects (user_id, subject_name, total_classes, attended_classes) VALUES (?, ?, ?, ?)",
+        cursor.execute("INSERT INTO subjects (user_id, subject_name, total_classes, attended_classes) VALUES (%s, %s, %s, %s)",
                        (user_id, name, total, attended))
         conn.commit()
         flash("Subject added successfully!", "success")
     except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals():
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
             conn.close()
             
     return redirect(url_for('dashboard'))
@@ -185,14 +177,15 @@ def edit_subject(subject_id):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("UPDATE subjects SET subject_name=?, total_classes=?, attended_classes=? WHERE subject_id=? AND user_id=?",
+        cursor.execute("UPDATE subjects SET subject_name=%s, total_classes=%s, attended_classes=%s WHERE subject_id=%s AND user_id=%s",
                        (name, total, attended, subject_id, user_id))
         conn.commit()
         flash("Subject updated!", "success")
     except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals():
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
             conn.close()
             
     return redirect(url_for('dashboard'))
@@ -205,13 +198,14 @@ def delete_subject(subject_id):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM subjects WHERE subject_id=? AND user_id=?", (subject_id, user_id))
+        cursor.execute("DELETE FROM subjects WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
         conn.commit()
         flash("Subject deleted!", "success")
     except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals():
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
             conn.close()
             
     return redirect(url_for('dashboard'))
@@ -225,14 +219,15 @@ def quick_action(subject_id, action):
         conn = get_db()
         cursor = conn.cursor()
         if action == 'attend':
-            cursor.execute("UPDATE subjects SET total_classes=total_classes+1, attended_classes=attended_classes+1 WHERE subject_id=? AND user_id=?", (subject_id, user_id))
+            cursor.execute("UPDATE subjects SET total_classes=total_classes+1, attended_classes=attended_classes+1 WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
         elif action == 'bunk':
-            cursor.execute("UPDATE subjects SET total_classes=total_classes+1 WHERE subject_id=? AND user_id=?", (subject_id, user_id))
+            cursor.execute("UPDATE subjects SET total_classes=total_classes+1 WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
         conn.commit()
     except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals():
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
             conn.close()
             
     return redirect(url_for('dashboard'))
@@ -243,14 +238,13 @@ def chart_data():
     user_id = session['user_id']
     try:
         conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT subject_name, total_classes, attended_classes FROM subjects WHERE user_id = ?", (user_id,))
-        rows = cursor.fetchall()
-        subjects_data = [{"subject_name": row["subject_name"], "total_classes": row["total_classes"], "attended_classes": row["attended_classes"]} for row in rows]
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT subject_name, total_classes, attended_classes FROM subjects WHERE user_id = %s", (user_id,))
+        subjects = cursor.fetchall()
         
         labels = []
         attendance_rates = []
-        for sub in subjects_data:
+        for sub in subjects:
             labels.append(sub['subject_name'])
             perc = (sub['attended_classes'] / sub['total_classes'] * 100) if sub['total_classes'] > 0 else 0
             attendance_rates.append(round(perc, 2))
@@ -259,7 +253,8 @@ def chart_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
-        if 'conn' in locals():
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
             conn.close()
 
 if __name__ == '__main__':
