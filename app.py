@@ -388,11 +388,14 @@ def upload_timetable():
                     ],
                 }
             ],
-            max_tokens=500
+            max_tokens=2000
         )
         
-        data_json = json.loads(response.choices[0].message.content.strip())
-        
+        try:
+            data_json = json.loads(response.choices[0].message.content.strip())
+        except json.JSONDecodeError:
+            return jsonify({'error': 'AI encountered an error compiling your timetable data (Response too large). Please try again.'}), 500
+            
         # Insert subjects to MongoDB
         extracted_subjects = data_json.get('subjects', [])
         added_count = 0
