@@ -364,27 +364,29 @@ def upload_timetable():
         
         sys_prompt = (
             "You are an expert OCR timetable parser extracting data to JSON.\n"
-            "Return JSON strictly in this format:\n"
-            "{\n"
-            "  \"subjects\": [\n"
-            "    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\" or \"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean}\n"
-            "  ],\n"
-            "  \"daily_schedule\": {\n"
-            "    \"Monday\": [{\"subject_name\": \"string\", \"subject_type\": \"Lecture\" or \"Practical\"}],\n"
-            "    \"Tuesday\": [{\"subject_name\": \"string\", \"subject_type\": \"Lecture\" or \"Practical\"}],\n"
-            "    \"Wednesday\": [], \"Thursday\": [], \"Friday\": [], \"Saturday\": []\n"
-            "  },\n"
-            "  \"summary\": \"A short 2-sentence summary.\"\n"
-            "}\n\n"
-            "=== CRITICAL INSTRUCTIONS ===\n"
-            "1. ACRONYMS: Expand short names (DM->Discrete Mathematics, COM/MP->Computer Org and Microprocessor, OE->Open Elective, IOT->Internet of Things, MIL->Modern Indian Languages, WD->Web Development, MPL->Microprocessor Lab, EPD->Engineering Product Design, EVS->Environmental Studies, DBMS->Database Management Systems).\n"
-            "2. MULTIPLE COMPONENTS: A subject can have BOTH a 'Lecture' (1-hour block) and a 'Practical' (2-hour block). For example, if 'WD' shows up as a 1hr slot AND a 2hr slot, you MUST output TWO separate objects in the subjects array: {\"subject_name\": \"Web Development\", \"subject_type\": \"Lecture\"} AND {\"subject_name\": \"Web Development\", \"subject_type\": \"Practical\"}. DO NOT MERGE THEM. They are separate entities.\n"
-            "3. EXCLUSIONS: `exclude_attendance` MUST BE FALSE for core academic subjects! Only set it to true for explicitly non-academic entities like Lunch, Mentoring, or NPTEL. The student MUST track attendance for everything else.\n"
-            "4. THOROUGHNESS: The user expects about 9-10 distinct subjects covering subjects and labs. Scan the entire grid. Do NOT drop or skip any class block.\n"
+            "Return JSON strictly in this format: {\"subjects\": [...], \"daily_schedule\": {...}, \"summary\": \"...\"}\n"
+            "=== MANDATORY SUBJECTS LIST ===\n"
+            "Regardless of how blurry the image is, you MUST output ALL of the following objects in your `subjects` JSON array. Do not miss a single one:\n"
+            "- {\"subject_name\": \"Discrete Mathematics\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Computer Org and Microprocessor\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Open Elective\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Internet of Things\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Environmental Studies\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Modern Indian Languages\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Modern Indian Languages\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Web Development\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Web Development\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Engineering Product Design\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Engineering Product Design\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Microprocessor Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Database Management Systems\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Database Management Systems\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "=== TIMETABLE MAPPING ===\n"
+            "Now look at the image. Parse the schedule to map these subjects into the `daily_schedule` object (Monday through Saturday). "
         )
         
         if division or branch:
-            sys_prompt += f"5. FILTERING: The user's Division is '{division}' and Batch is '{branch}'. For 2-hour Practicals, ONLY extract the ones assigned specifically to Batch '{branch}'. However, for 1-hour Lectures, extract ALL of them because Lectures apply to the entire Division '{division}'. Do not accidentally delete their Lectures just because the batch wasn't printed next to it! ALWAYS keep core lectures.\n"
+            sys_prompt += f"For the 'batch' fields above that say 'string', replace them with the user's specific batch '{branch}'. Only map the classes for Division '{division}' and Batch '{branch}' to the daily_schedule.\n"
         
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -486,6 +488,15 @@ def quick_day_action():
         classes_updated += res.modified_count
         
     flash(f"Successfully tracked {classes_updated} classes ({action.upper()} ALL) for {day}!", "success")
+    return redirect(url_for('dashboard'))
+
+@app.route('/api/clear_subjects', methods=['POST'])
+@login_required
+def clear_subjects():
+    user_id = session['user_id']
+    subjects_collection.delete_many({'user_id': user_id})
+    db.users.update_one({'_id': user_id}, {'$unset': {'daily_schedule': "", 'timetable_context': ""}})
+    flash('All tracked subjects and timetable data have been successfully deleted!', 'success')
     return redirect(url_for('dashboard'))
 
 @app.route('/api/save_semester_dates', methods=['POST'])

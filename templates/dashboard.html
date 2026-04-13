@@ -57,9 +57,16 @@
         
         <div class="mb-6 flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm">
             <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-list-check text-primary"></i> Track Classes</h2>
-            <button @click="showAddModal = true; newSubjectType = 'Lecture'" class="bg-primary hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all transform hover:scale-105 flex items-center gap-2">
-                <i class="fa-solid fa-plus"></i> Add Subject
-            </button>
+            <div class="flex gap-2">
+                <form action="/api/clear_subjects" method="POST" onsubmit="return confirm('WARNING: This will permanently delete ALL subjects and your AI Timetable cache. Are you absolutely sure?');">
+                    <button type="submit" class="bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-800 px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-trash-can"></i> Clear All
+                    </button>
+                </form>
+                <button @click="showAddModal = true; newSubjectType = 'Lecture'" class="bg-primary hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all transform hover:scale-105 flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Add Subject
+                </button>
+            </div>
         </div>
 
         <!-- Daily Auto-Logger -->
