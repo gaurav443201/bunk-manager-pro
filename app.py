@@ -128,6 +128,8 @@ def dashboard():
                 sub['message'] = f"Attend next {y} classes to reach safe level"
                 sub['recover_count'] = y
                 
+    overall_percent = round((overall_attended / overall_total * 100), 2) if overall_total > 0 else 0.0
+    
     user_doc = db.users.find_one({'_id': user_id}) or {}
     timetable_context = user_doc.get('timetable_context')
     sem_start = user_doc.get('sem_start', '')
