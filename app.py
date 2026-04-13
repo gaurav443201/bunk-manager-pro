@@ -54,10 +54,10 @@ def login():
         email = request.form.get('email')
         password = request.form.get('password')
         
-        # Hardcoded teacher login
+        # Hardcoded student login
         if email == 'gaurav443201' and password == '443201':
             session['user_id'] = 1
-            session['user_name'] = 'Gaurav (Teacher)'
+            session['user_name'] = 'Gaurav'
             flash("Logged in successfully!", "success")
             return redirect(url_for('dashboard'))
         else:

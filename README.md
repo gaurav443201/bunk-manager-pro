@@ -3,7 +3,7 @@
 A modern, full-stack educational web application designed to help students track their attendance and manage their bunks effectively. Built with Flask, MongoDB, and Tailwind CSS.
 
 ## 🎯 Features
-- **Teacher Login:** Preconfigured secure login bypass (`gaurav443201`) for presentation.
+- **Student Login:** Preconfigured secure login bypass (`gaurav443201`) for presentation.
 - **Modern Dashboard:** Track your attendance dynamically.
 - **Bunk Logic:** Accurately tells you how many classes you can afford to bunk while staying above 75%.
 - **Recovery Logic:** Tells you how many classes you need to attend to recover below-75% attendance.
