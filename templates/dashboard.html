@@ -153,19 +153,31 @@
             <p class="text-gray-600 dark:text-gray-400 mb-6">Upload a picture or a PDF of your Timetable schedule. GPT-4 will read it and provide proactive Bunk predictions based on what classes you have today!</p>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Dropzone -->
-                <div class="border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-2xl p-10 text-center hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative cursor-pointer" onclick="document.getElementById('timetableUpload').click()">
-                    <div x-show="!uploading && !uploadSuccess">
-                        <i class="fa-solid fa-file-pdf text-4xl text-purple-400 mb-3"></i>
-                        <p class="font-bold text-gray-700 dark:text-gray-300">Click to Select Timetable Image or PDF</p>
+                <!-- Dropzone Section -->
+                <div>
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Your Branch (Optional)</label>
+                            <input type="text" id="aiBranch" placeholder="e.g. CS, IT" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-purple-200 dark:border-purple-800 rounded-lg text-sm shadow-inner transition-colors focus:ring-2 focus:ring-purple-400 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Your Batch (Optional)</label>
+                            <input type="text" id="aiBatch" placeholder="e.g. A2, B" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-purple-200 dark:border-purple-800 rounded-lg text-sm shadow-inner transition-colors focus:ring-2 focus:ring-purple-400 outline-none">
+                        </div>
                     </div>
-                    <div x-show="uploading">
-                        <i class="fa-solid fa-circle-notch fa-spin text-4xl text-purple-500 mb-3"></i>
-                        <p class="font-bold text-purple-600">GPT-4 is parsing your timetable... please wait.</p>
-                    </div>
-                    <div x-show="uploadSuccess">
-                        <i class="fa-solid fa-check-circle text-4xl text-green-500 mb-3"></i>
-                        <p class="font-bold text-green-600">Timetable Synchronized Successfully!</p>
+                    <div class="border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-2xl p-8 text-center hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative cursor-pointer h-[200px] flex flex-col justify-center items-center" onclick="document.getElementById('timetableUpload').click()">
+                        <div x-show="!uploading && !uploadSuccess">
+                            <i class="fa-solid fa-file-pdf text-4xl text-purple-400 mb-3"></i>
+                            <p class="font-bold text-gray-700 dark:text-gray-300">Click to Select Timetable Image or PDF</p>
+                        </div>
+                        <div x-show="uploading">
+                            <i class="fa-solid fa-circle-notch fa-spin text-4xl text-purple-500 mb-3"></i>
+                            <p class="font-bold text-purple-600">GPT-4 is parsing your timetable... please wait.</p>
+                        </div>
+                        <div x-show="uploadSuccess">
+                            <i class="fa-solid fa-check-circle text-4xl text-green-500 mb-3"></i>
+                            <p class="font-bold text-green-600">Timetable Synchronized Successfully!</p>
+                        </div>
                     </div>
                 </div>
 
@@ -187,10 +199,10 @@
                     </form>
 
                     {% if timetable_context %}
-                    <div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-5 rounded-2xl flex-grow flex flex-col">
-                        <h4 class="font-bold text-purple-800 dark:text-purple-300 mb-2 flex items-center gap-2"><i class="fa-solid fa-brain"></i> AI Brain File</h4>
+                    <div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-4 rounded-2xl flex-grow flex flex-col justify-center">
+                        <h4 class="font-bold text-purple-800 dark:text-purple-300 mb-1 flex items-center gap-2"><i class="fa-solid fa-brain"></i> AI Brain File</h4>
                         <p class="text-xs text-gray-600 dark:text-gray-400 opacity-90 italic">What the AI actually sees:</p>
-                        <p class="text-sm font-medium text-purple-900 dark:text-purple-200 mt-2 line-clamp-3 hover:line-clamp-none cursor-pointer">{{ timetable_context }}</p>
+                        <p class="text-sm font-medium text-purple-900 dark:text-purple-200 mt-2 line-clamp-2 hover:line-clamp-none cursor-pointer">{{ timetable_context }}</p>
                     </div>
                     {% endif %}
                 </div>
@@ -200,6 +212,8 @@
                 uploading = true; uploadSuccess = false;
                 let formData = new FormData();
                 formData.append('timetable', $event.target.files[0]);
+                formData.append('branch', document.getElementById('aiBranch').value);
+                formData.append('batch', document.getElementById('aiBatch').value);
                 fetch('/api/upload_timetable', { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(data => {

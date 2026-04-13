@@ -359,13 +359,20 @@ def upload_timetable():
         
         import json
         
+        branch = request.form.get('branch', '')
+        batch = request.form.get('batch', '')
+        
+        sys_prompt = "You are a timetable parser. Extract all unique subjects from the timetable image. Distinguish between Lectures and Practicals based on the schedule. If a practical has a batch, extract it. Return a JSON object exactly like this:\n{\n  \"subjects\": [\n    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean}\n  ],\n  \"summary\": \"A short 2-sentence summary of when the student's busiest days are from the schedule.\"\n}"
+        if branch or batch:
+            sys_prompt += f" EXTREMELY IMPORTANT: The user's specific Branch is '{branch}' and Batch is '{batch}'. You MUST filter out all other branches and only extract classes that this specific branch and batch would attend! Ignore other columns."
+        
         response = client.chat.completions.create(
             model="gpt-4o",
             response_format={"type": "json_object"},
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a timetable parser. Extract all unique subjects from the timetable image. Distinguish between Lectures and Practicals based on the schedule. If a practical has a batch, extract it. Return a JSON object exactly like this:\n{\n  \"subjects\": [\n    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean (true ONLY if it's Mentoring, NPTEL, or a non-core tracking activity)}\n  ],\n  \"summary\": \"A short 2-sentence summary of when the student's busiest days are from the schedule.\"\n}"
+                    "content": sys_prompt
                 },
                 {
                     "role": "user",
