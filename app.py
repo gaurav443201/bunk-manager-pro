@@ -357,30 +357,69 @@ def upload_timetable():
         else:
             base64_image = base64.b64encode(file_bytes).decode('utf-8')
         
+        import json
+        
         response = client.chat.completions.create(
             model="gpt-4o",
+            response_format={"type": "json_object"},
             messages=[
+                {
+                    "role": "system",
+                    "content": "You are a timetable parser. Extract all unique subjects from the timetable image. Distinguish between Lectures and Practicals based on the schedule. If a practical has a batch, extract it. Return a JSON object exactly like this:\n{\n  \"subjects\": [\n    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean (true ONLY if it's Mentoring, NPTEL, or a non-core tracking activity)}\n  ],\n  \"summary\": \"A short 2-sentence summary of when the student's busiest days are from the schedule.\"\n}"
+                },
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Parse this timetable. Extract the scheduled classes (lectures and practicals) and batches. Return a summarized paragraph that I can use as context for predicting when I can bunk safely."},
+                        {"type": "text", "text": "Extract the subjects and summary from this timetable image to JSON format."},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ],
                 }
             ],
-            max_tokens=300
+            max_tokens=500
         )
         
-        parsed_schedule = response.choices[0].message.content.strip()
+        data_json = json.loads(response.choices[0].message.content.strip())
         
-        # Save to DB
+        # Insert subjects to MongoDB
+        extracted_subjects = data_json.get('subjects', [])
+        added_count = 0
+        for sub in extracted_subjects:
+            s_name = sub.get('subject_name')
+            if not s_name: continue
+            s_type = sub.get('subject_type', 'Lecture')
+            s_batch = sub.get('batch', '')
+            exclude = sub.get('exclude_attendance', False)
+            
+            # Upsert ensures we don't overwrite attended_classes if it already exists!
+            res = subjects_collection.update_one(
+                {
+                    'user_id': user_id, 
+                    'subject_name': s_name, 
+                    'subject_type': s_type,
+                    'batch': s_batch
+                },
+                {
+                    '$setOnInsert': {
+                        'exclude_attendance': exclude,
+                        'total_classes': 0,
+                        'attended_classes': 0
+                    }
+                },
+                upsert=True
+            )
+            if res.upserted_id:
+                added_count += 1
+        
+        parsed_schedule = data_json.get('summary', 'Timetable synced.')
+        
+        # Save summary string to Context for ChatGPT Prediction
         db.users.update_one(
             {'_id': user_id},
             {'$set': {'timetable_context': parsed_schedule}},
             upsert=True
         )
         
-        return jsonify({'success': True, 'message': 'Timetable parsed and saved successfully!', 'data': parsed_schedule})
+        return jsonify({'success': True, 'message': f'Timetable AI added {added_count} new subjects automatically!', 'data': parsed_schedule})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
