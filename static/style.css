@@ -1,0 +1,5 @@
+/* Additional custom styles if needed, Tailwind handles most styling in the HTML */
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}

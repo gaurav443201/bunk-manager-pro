@@ -1,0 +1,18 @@
+CREATE DATABASE IF NOT EXISTS bunk_manager;
+USE bunk_manager;
+
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subjects (
+    subject_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    subject_name VARCHAR(100) NOT NULL,
+    total_classes INT NOT NULL DEFAULT 0,
+    attended_classes INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
