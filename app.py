@@ -128,9 +128,12 @@ def dashboard():
                 sub['message'] = f"Attend next {y} classes to reach safe level"
                 sub['recover_count'] = y
                 
-    overall_percent = round((overall_attended / overall_total * 100), 2) if overall_total > 0 else 0.0
+    user_doc = db.users.find_one({'_id': user_id}) or {}
+    timetable_context = user_doc.get('timetable_context')
+    sem_start = user_doc.get('sem_start', '')
+    sem_end = user_doc.get('sem_end', '')
     
-    return render_template('dashboard.html', subjects=subjects, overall_percent=overall_percent)
+    return render_template('dashboard.html', subjects=subjects, overall_percent=overall_percent, timetable_context=timetable_context, sem_start=sem_start, sem_end=sem_end)
 
 @app.route('/subject/add', methods=['POST'])
 @login_required
@@ -289,8 +292,13 @@ def chatgpt_suggestion():
         
         # Add Timetable Context
         user_doc = db.users.find_one({'_id': user_id})
+        if user_doc:
+            if user_doc.get('timetable_context'):
+                prompt += f"\nHere is my weekly timetable schedule: {user_doc.get('timetable_context')}\n"
+            if user_doc.get('sem_start') and user_doc.get('sem_end'):
+                prompt += f"My semester started on {user_doc.get('sem_start')} and ends on {user_doc.get('sem_end')}. Use these dates to roughly estimate how much of the semester is left and whether my current attendance allows me to relax or if I need to grind."
+            
         if user_doc and user_doc.get('timetable_context'):
-            prompt += f"\nHere is my weekly timetable schedule: {user_doc.get('timetable_context')}\n"
             prompt += "\nPlease give me short, chill, bro-like advice in 2-3 sentences. Tell me specifically using my timetable what days/classes I can bunk, or if I'm in danger. Be supportive!"
         else:
             prompt += "\nGive me a short, friendly, bro-like advice in exactly 2-3 sentences. Tell me what I should focus on, if I can relax, or if I'm in danger. Be supportive!"
@@ -373,6 +381,25 @@ def upload_timetable():
         return jsonify({'success': True, 'message': 'Timetable parsed and saved successfully!', 'data': parsed_schedule})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/save_semester_dates', methods=['POST'])
+@login_required
+def save_semester_dates():
+    user_id = session['user_id']
+    start_date = request.form.get('sem_start')
+    end_date = request.form.get('sem_end')
+    
+    try:
+        db.users.update_one(
+            {'_id': user_id},
+            {'$set': {'sem_start': start_date, 'sem_end': end_date}},
+            upsert=True
+        )
+        flash("Semester dates saved successfully! AI will now factor this into your predictions.", "success")
+    except Exception as e:
+        flash(f"Error saving dates: {e}", "danger")
+        
+    return redirect(url_for('dashboard'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

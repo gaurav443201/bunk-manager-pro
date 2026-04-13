@@ -152,20 +152,50 @@
             <h3 class="text-2xl font-extrabold mb-4 flex items-center gap-3 text-purple-600 dark:text-purple-400"><i class="fa-solid fa-file-pdf"></i> AI Timetable Parsing (Image or PDF)</h3>
             <p class="text-gray-600 dark:text-gray-400 mb-6">Upload a picture or a PDF of your Timetable schedule. GPT-4 will read it and provide proactive Bunk predictions based on what classes you have today!</p>
             
-            <div class="border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-2xl p-10 text-center hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative cursor-pointer" onclick="document.getElementById('timetableUpload').click()">
-                <div x-show="!uploading && !uploadSuccess">
-                    <i class="fa-solid fa-file-pdf text-4xl text-purple-400 mb-3"></i>
-                    <p class="font-bold text-gray-700 dark:text-gray-300">Click to Select Timetable Image or PDF</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Dropzone -->
+                <div class="border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-2xl p-10 text-center hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative cursor-pointer" onclick="document.getElementById('timetableUpload').click()">
+                    <div x-show="!uploading && !uploadSuccess">
+                        <i class="fa-solid fa-file-pdf text-4xl text-purple-400 mb-3"></i>
+                        <p class="font-bold text-gray-700 dark:text-gray-300">Click to Select Timetable Image or PDF</p>
+                    </div>
+                    <div x-show="uploading">
+                        <i class="fa-solid fa-circle-notch fa-spin text-4xl text-purple-500 mb-3"></i>
+                        <p class="font-bold text-purple-600">GPT-4 is parsing your timetable... please wait.</p>
+                    </div>
+                    <div x-show="uploadSuccess">
+                        <i class="fa-solid fa-check-circle text-4xl text-green-500 mb-3"></i>
+                        <p class="font-bold text-green-600">Timetable Synchronized Successfully!</p>
+                    </div>
                 </div>
-                <div x-show="uploading">
-                    <i class="fa-solid fa-circle-notch fa-spin text-4xl text-purple-500 mb-3"></i>
-                    <p class="font-bold text-purple-600">GPT-4 is parsing your timetable... please wait.</p>
-                </div>
-                <div x-show="uploadSuccess">
-                    <i class="fa-solid fa-check-circle text-4xl text-green-500 mb-3"></i>
-                    <p class="font-bold text-green-600">Timetable Synchronized Successfully!</p>
+
+                <!-- Semester Dates & Context -->
+                <div class="flex flex-col gap-4">
+                    <form action="/api/save_semester_dates" method="POST" class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-5 rounded-2xl">
+                        <h4 class="font-bold text-gray-800 dark:text-white mb-3 text-sm uppercase tracking-wider"><i class="fa-solid fa-calendar-days text-primary"></i> Semester Timeline Config</h4>
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 font-semibold mb-1">Start Date</label>
+                                <input type="date" name="sem_start" value="{{ sem_start }}" class="w-full text-sm px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 font-semibold mb-1">End Date</label>
+                                <input type="date" name="sem_end" value="{{ sem_end }}" class="w-full text-sm px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-primary hover:bg-indigo-600 text-white font-bold py-2 rounded-xl text-sm transition-colors">Sync Timeline with AI</button>
+                    </form>
+
+                    {% if timetable_context %}
+                    <div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-5 rounded-2xl flex-grow flex flex-col">
+                        <h4 class="font-bold text-purple-800 dark:text-purple-300 mb-2 flex items-center gap-2"><i class="fa-solid fa-brain"></i> AI Brain File</h4>
+                        <p class="text-xs text-gray-600 dark:text-gray-400 opacity-90 italic">What the AI actually sees:</p>
+                        <p class="text-sm font-medium text-purple-900 dark:text-purple-200 mt-2 line-clamp-3 hover:line-clamp-none cursor-pointer">{{ timetable_context }}</p>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
+
             <input type="file" id="timetableUpload" class="hidden" accept="image/*,.pdf" @change="
                 uploading = true; uploadSuccess = false;
                 let formData = new FormData();
