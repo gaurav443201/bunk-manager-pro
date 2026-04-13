@@ -359,12 +359,14 @@ def upload_timetable():
         
         import json
         
+        division = request.form.get('division', '')
         branch = request.form.get('branch', '')
-        batch = request.form.get('batch', '')
         
-        sys_prompt = "You are a timetable parser. Extract all unique subjects from the timetable image. Distinguish between Lectures and Practicals based on the schedule. If a practical has a batch, extract it. Return a JSON object exactly like this:\n{\n  \"subjects\": [\n    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean}\n  ],\n  \"summary\": \"A short 2-sentence summary of when the student's busiest days are from the schedule.\"\n}"
-        if branch or batch:
-            sys_prompt += f" EXTREMELY IMPORTANT: The user's specific Branch is '{branch}' and Batch is '{batch}'. You MUST filter out all other branches and only extract classes that this specific branch and batch would attend! Ignore other columns."
+        sys_prompt = "You are a timetable parser. Extract all unique subjects from the timetable image. Distinguish between Lectures and Practicals based on the schedule. If a practical has a batch, extract it. Return a JSON object exactly like this:\n{\n  \"subjects\": [\n    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean}\n  ],\n  \"summary\": \"A short 2-sentence summary of when the student's busiest days are from the schedule.\"\n}\n"
+        sys_prompt += "CRITICAL RULE: Expand short abbreviated subject names into their FULL FORMS if they match these known subjects: DM -> 'Discrete Mathematics', COM or MP -> 'Computer Org and Microprocessor', OE -> 'Open Elective', IOT -> 'Internet of Things', MIL -> 'Modern Indian Languages', WD or Web Dev -> 'Web Development', MP Lab -> 'Microprocessor Lab', EPD -> 'Engineering Product Design', EVS -> 'Environmental Studies'. "
+        
+        if division or branch:
+            sys_prompt += f"EXTREMELY IMPORTANT: The user's specific Division is '{division}' and Branch/Batch is '{branch}'. You MUST filter out all other branches/divisions and ONLY extract classes that this specific student would attend! Ignore all other columns."
         
         response = client.chat.completions.create(
             model="gpt-4o",
