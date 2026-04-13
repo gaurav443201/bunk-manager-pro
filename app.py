@@ -362,8 +362,9 @@ def upload_timetable():
         division = request.form.get('division', '')
         branch = request.form.get('branch', '')
         
-        sys_prompt = "You are a timetable parser. Extract all unique subjects from the timetable image. Distinguish between Lectures and Practicals based on the schedule. If a practical has a batch, extract it. Return a JSON object exactly like this:\n{\n  \"subjects\": [\n    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean}\n  ],\n  \"summary\": \"A short 2-sentence summary of when the student's busiest days are from the schedule.\"\n}\n"
+        sys_prompt = "You are a timetable parser. Extract all unique subjects from the timetable image. Return a JSON object exactly like this:\n{\n  \"subjects\": [\n    {\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\", \"batch\": \"string or empty\", \"exclude_attendance\": boolean}\n  ],\n  \"daily_schedule\": {\n    \"Monday\": [{\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\"}],\n    \"Tuesday\": [{\"subject_name\": \"string\", \"subject_type\": \"Lecture\"|\"Practical\"}],\n    \"Wednesday\": [], \"Thursday\": [], \"Friday\": [], \"Saturday\": []\n  },\n  \"summary\": \"A short 2-sentence summary of when the student's busiest days are.\"\n}\n"
         sys_prompt += "CRITICAL RULE: Expand short abbreviated subject names into their FULL FORMS if they match these known subjects: DM -> 'Discrete Mathematics', COM or MP -> 'Computer Org and Microprocessor', OE -> 'Open Elective', IOT -> 'Internet of Things', MIL -> 'Modern Indian Languages', WD or Web Dev -> 'Web Development', MP Lab -> 'Microprocessor Lab', EPD -> 'Engineering Product Design', EVS -> 'Environmental Studies'. "
+        sys_prompt += "TIME RULE: If a class block occupies 2 HOURS on the timetable, it MUST be classified as a 'Practical'. If it is 1 HOUR, it MUST be classified as a 'Lecture'. "
         
         if division or branch:
             sys_prompt += f"EXTREMELY IMPORTANT: The user's specific Division is '{division}' and Branch/Batch is '{branch}'. You MUST filter out all other branches/divisions and ONLY extract classes that this specific student would attend! Ignore all other columns."
@@ -420,17 +421,52 @@ def upload_timetable():
                 added_count += 1
         
         parsed_schedule = data_json.get('summary', 'Timetable synced.')
+        daily_schedule = data_json.get('daily_schedule', {})
         
         # Save summary string to Context for ChatGPT Prediction
         db.users.update_one(
             {'_id': user_id},
-            {'$set': {'timetable_context': parsed_schedule}},
+            {'$set': {'timetable_context': parsed_schedule, 'daily_schedule': daily_schedule}},
             upsert=True
         )
         
         return jsonify({'success': True, 'message': f'Timetable AI added {added_count} new subjects automatically!', 'data': parsed_schedule})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/quick_day_action', methods=['POST'])
+@login_required
+def quick_day_action():
+    user_id = session['user_id']
+    day = request.form.get('day')
+    action = request.form.get('action') # 'attend' or 'bunk'
+    
+    user_doc = db.users.find_one({'_id': user_id})
+    if not user_doc or not user_doc.get('daily_schedule'):
+        flash("Please upload your timetable first using Advanced Mode so the AI can map your daily schedules!", "danger")
+        return redirect(url_for('dashboard'))
+        
+    schedule = user_doc['daily_schedule'].get(day, [])
+    if not schedule:
+        flash(f"Amazing! You have zero tracked classes mapped on {day}.", "info")
+        return redirect(url_for('dashboard'))
+        
+    classes_updated = 0
+    for item in schedule:
+        name = item.get('subject_name')
+        stype = item.get('subject_type')
+        inc_data = {'total_classes': 1}
+        if action == 'attend':
+            inc_data['attended_classes'] = 1
+            
+        res = subjects_collection.update_many(
+            {'user_id': user_id, 'subject_name': name, 'subject_type': stype},
+            {'$inc': inc_data}
+        )
+        classes_updated += res.modified_count
+        
+    flash(f"Successfully tracked {classes_updated} classes ({action.upper()} ALL) for {day}!", "success")
+    return redirect(url_for('dashboard'))
 
 @app.route('/api/save_semester_dates', methods=['POST'])
 @login_required
