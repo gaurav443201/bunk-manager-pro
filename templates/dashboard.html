@@ -146,13 +146,13 @@
         
         <!-- ADVANCED MODE TIMETABLE UPLOADER -->
         <div x-show="advancedMode" class="mb-10 bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl border border-purple-200 dark:border-purple-800">
-            <h3 class="text-2xl font-extrabold mb-4 flex items-center gap-3 text-purple-600 dark:text-purple-400"><i class="fa-solid fa-eye"></i> GPT-4 Vision Timetable Parsing</h3>
-            <p class="text-gray-600 dark:text-gray-400 mb-6">Upload a picture of your Timetable schedule. GPT-4 will read the image and provide proactive Bunk predictions based on what classes you have today!</p>
+            <h3 class="text-2xl font-extrabold mb-4 flex items-center gap-3 text-purple-600 dark:text-purple-400"><i class="fa-solid fa-file-pdf"></i> AI Timetable Parsing (Image or PDF)</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Upload a picture or a PDF of your Timetable schedule. GPT-4 will read it and provide proactive Bunk predictions based on what classes you have today!</p>
             
             <div class="border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-2xl p-10 text-center hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative cursor-pointer" onclick="document.getElementById('timetableUpload').click()">
                 <div x-show="!uploading && !uploadSuccess">
-                    <i class="fa-solid fa-image text-4xl text-purple-400 mb-3"></i>
-                    <p class="font-bold text-gray-700 dark:text-gray-300">Click to Select Timetable Image</p>
+                    <i class="fa-solid fa-file-pdf text-4xl text-purple-400 mb-3"></i>
+                    <p class="font-bold text-gray-700 dark:text-gray-300">Click to Select Timetable Image or PDF</p>
                 </div>
                 <div x-show="uploading">
                     <i class="fa-solid fa-circle-notch fa-spin text-4xl text-purple-500 mb-3"></i>
@@ -163,7 +163,7 @@
                     <p class="font-bold text-green-600">Timetable Synchronized Successfully!</p>
                 </div>
             </div>
-            <input type="file" id="timetableUpload" class="hidden" accept="image/*" @change="
+            <input type="file" id="timetableUpload" class="hidden" accept="image/*,.pdf" @change="
                 uploading = true; uploadSuccess = false;
                 let formData = new FormData();
                 formData.append('timetable', $event.target.files[0]);

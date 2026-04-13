@@ -314,13 +314,14 @@ def chatgpt_suggestion():
         return jsonify({'suggestion': f"Oops, couldn't access my brain right now! Make sure your OpenAI API key is correct. ({str(e)})"})
 
 import base64
+import fitz  # PyMuPDF
 
 @app.route('/api/upload_timetable', methods=['POST'])
 @login_required
 def upload_timetable():
     user_id = session['user_id']
     if 'timetable' not in request.files:
-        return jsonify({'error': 'No image file found'}), 400
+        return jsonify({'error': 'No file found'}), 400
         
     file = request.files['timetable']
     if file.filename == '':
@@ -328,12 +329,23 @@ def upload_timetable():
 
     openai_api_key = os.environ.get('OPENAI_API_KEY')
     if not openai_api_key:
-        return jsonify({'error': 'OPENAI_API_KEY is missing. AI cannot read images.'}), 400
+        return jsonify({'error': 'OPENAI_API_KEY is missing. AI cannot read files.'}), 400
         
     try:
         import openai
         client = openai.OpenAI(api_key=openai_api_key)
-        base64_image = base64.b64encode(file.read()).decode('utf-8')
+        
+        file_bytes = file.read()
+        filename = file.filename.lower()
+        
+        if filename.endswith('.pdf'):
+            # Instantly convert the PDF into a clear image array using PyMuPDF
+            pdf_document = fitz.open(stream=file_bytes, filetype="pdf")
+            page = pdf_document.load_page(0)  # Grab the first page
+            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # High resolution
+            base64_image = base64.b64encode(pix.tobytes("jpeg")).decode('utf-8')
+        else:
+            base64_image = base64.b64encode(file_bytes).decode('utf-8')
         
         response = client.chat.completions.create(
             model="gpt-4o",
