@@ -2,7 +2,7 @@
 {% block title %}Dashboard - Bunk Manager Pro{% endblock %}
 
 {% block content %}
-<div x-data="{ showAddModal: false, editSubject: null }">
+<div x-data="{ activeTab: 'subjects', showAddModal: false, editSubject: null }">
 
     <!-- Overview Header -->
     <div class="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -25,168 +25,172 @@
         </div>
     </div>
 
-    <!-- Actions & Chart -->
-    <div class="mb-8 flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm">
-        <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-book-open text-primary"></i> Your Subjects</h2>
-        <button @click="showAddModal = true" class="bg-primary hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all transform hover:scale-105 flex items-center gap-2">
-            <i class="fa-solid fa-plus"></i> Add Subject
+    <!-- Tabs Navigation -->
+    <div class="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8 overflow-x-auto">
+        <button @click="activeTab = 'subjects'" 
+            :class="{'border-b-2 border-primary text-primary dark:text-indigo-400 font-bold': activeTab === 'subjects', 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200': activeTab !== 'subjects'}" 
+            class="px-6 py-3 font-medium transition-colors text-lg whitespace-nowrap">
+            <i class="fa-solid fa-book-open mr-2"></i> My Subjects
+        </button>
+        <button @click="activeTab = 'analytics'" 
+            :class="{'border-b-2 border-purple-500 text-purple-600 dark:text-purple-400 font-bold': activeTab === 'analytics', 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200': activeTab !== 'analytics'}" 
+            class="px-6 py-3 font-medium transition-colors text-lg whitespace-nowrap">
+            <i class="fa-solid fa-chart-line mr-2"></i> AI & Analytics
         </button>
     </div>
 
-    {% if subjects %}
-    <!-- Subject Cards Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-        {% for subject in subjects %}
-        <div class="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.06)] border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
-            
-            <!-- Context Menu (Edit/Delete) -->
-            <div class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button @click="editSubject = {{ subject }}" class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex justify-center items-center hover:bg-blue-200 transition-colors">
-                    <i class="fa-solid fa-pen text-xs"></i>
-                </button>
-                <form action="{{ url_for('delete_subject', subject_id=subject.subject_id) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this subject?');">
-                    <button type="submit" class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex justify-center items-center hover:bg-red-200 transition-colors">
-                        <i class="fa-solid fa-trash text-xs"></i>
+    <!-- TAB 1: Subjects -->
+    <div x-show="activeTab === 'subjects'" x-transition:enter="transition-all ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-4" x-transition:enter-end="opacity-100 transform translate-y-0">
+        
+        <div class="mb-6 flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm">
+            <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-list-check text-primary"></i> Track Classes</h2>
+            <button @click="showAddModal = true" class="bg-primary hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all transform hover:scale-105 flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i> Add Subject
+            </button>
+        </div>
+
+        {% if subjects %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {% for subject in subjects %}
+            <div class="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.06)] border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
+                <!-- Context Menu (Edit/Delete) -->
+                <div class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button @click="editSubject = {{ subject }}" class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex justify-center items-center hover:bg-blue-200 transition-colors">
+                        <i class="fa-solid fa-pen text-xs"></i>
                     </button>
-                </form>
-            </div>
+                    <form action="{{ url_for('delete_subject', subject_id=subject.subject_id) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this subject?');">
+                        <button type="submit" class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex justify-center items-center hover:bg-red-200 transition-colors">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+                    </form>
+                </div>
 
-            <!-- Header -->
-            <div class="mb-4 pr-16">
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white truncate">{{ subject.subject_name }}</h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ subject.attended_classes }}</span> attended / <span class="font-medium text-gray-700 dark:text-gray-300">{{ subject.total_classes }}</span> total
-                </p>
-            </div>
+                <!-- Header -->
+                <div class="mb-4 pr-16">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white truncate">{{ subject.subject_name }}</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        <span class="font-medium text-gray-700 dark:text-gray-300">{{ subject.attended_classes }}</span> attended / <span class="font-medium text-gray-700 dark:text-gray-300">{{ subject.total_classes }}</span> total
+                    </p>
+                </div>
 
-            <!-- Circular Progress & Alert -->
-            <div class="flex items-center gap-4 mb-5">
-                <div class="relative w-24 h-24 flex-shrink-0">
-                    <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                        <!-- Background Circle -->
-                        <path class="text-gray-200 dark:text-gray-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
-                        <!-- Progress Circle -->
-                        <path class="
-                            {% if subject.status == 'green' %} text-green-500 
-                            {% elif subject.status == 'yellow' %} text-yellow-400 
-                            {% elif subject.status == 'red' %} text-red-500 
-                            {% else %} text-gray-400 {% endif %}" 
-                            stroke-dasharray="{{ subject.attendance_percent }}, 100" 
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
-                    </svg>
-                    <div class="absolute inset-0 flex items-center justify-center flex-col">
-                        <span class="text-xl font-bold text-gray-800 dark:text-white">{{ subject.attendance_percent }}<span class="text-xs">%</span></span>
+                <!-- Circular Progress & Alert -->
+                <div class="flex items-center gap-4 mb-5">
+                    <div class="relative w-24 h-24 flex-shrink-0">
+                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                            <path class="text-gray-200 dark:text-gray-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+                            <path class="{% if subject.status == 'green' %} text-green-500 {% elif subject.status == 'yellow' %} text-yellow-400 {% elif subject.status == 'red' %} text-red-500 {% else %} text-gray-400 {% endif %}" 
+                                stroke-dasharray="{{ subject.attendance_percent }}, 100" 
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center flex-col">
+                            <span class="text-xl font-bold text-gray-800 dark:text-white">{{ subject.attendance_percent }}<span class="text-xs">%</span></span>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow">
+                        <div class="p-3 rounded-xl border {% if subject.status == 'green' %} bg-green-50/50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300 {% elif subject.status == 'yellow' %} bg-yellow-50/50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 {% elif subject.status == 'red' %} bg-red-50/50 border-red-200 dark:bg-red-900/20 dark:border-red-800 text-red-800 dark:text-red-300 {% else %} bg-gray-50/50 border-gray-200 dark:bg-gray-800 dark:border-gray-700 text-gray-600 dark:text-gray-400 {% endif %}">
+                            <p class="text-sm font-semibold leading-tight">
+                                {% if subject.status == 'green' %}<i class="fa-solid fa-face-smile mr-1"></i>{% endif %}
+                                {% if subject.status == 'yellow' %}<i class="fa-solid fa-triangle-exclamation mr-1"></i>{% endif %}
+                                {% if subject.status == 'red' %}<i class="fa-solid fa-skull mr-1"></i>{% endif %}
+                                {{ subject.message }}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex-grow">
-                    <div class="p-3 rounded-xl border
-                        {% if subject.status == 'green' %} bg-green-50/50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300
-                        {% elif subject.status == 'yellow' %} bg-yellow-50/50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300
-                        {% elif subject.status == 'red' %} bg-red-50/50 border-red-200 dark:bg-red-900/20 dark:border-red-800 text-red-800 dark:text-red-300
-                        {% else %} bg-gray-50/50 border-gray-200 dark:bg-gray-800 dark:border-gray-700 text-gray-600 dark:text-gray-400
-                        {% endif %}">
-                        <p class="text-sm font-semibold leading-tight">
-                            {% if subject.status == 'green' %}<i class="fa-solid fa-face-smile mr-1"></i>{% endif %}
-                            {% if subject.status == 'yellow' %}<i class="fa-solid fa-triangle-exclamation mr-1"></i>{% endif %}
-                            {% if subject.status == 'red' %}<i class="fa-solid fa-skull mr-1"></i>{% endif %}
-                            {{ subject.message }}
-                        </p>
+                <!-- Quick Actions -->
+                <div class="grid grid-cols-2 gap-3 mt-auto">
+                    <form action="{{ url_for('quick_action', subject_id=subject.subject_id, action='attend') }}" method="POST">
+                        <button type="submit" class="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-green-500 hover:bg-green-600 transition-colors shadow-sm focus:ring-4 focus:ring-green-100 dark:focus:ring-green-900"><i class="fa-solid fa-check mr-1"></i> Attended</button>
+                    </form>
+                    <form action="{{ url_for('quick_action', subject_id=subject.subject_id, action='bunk') }}" method="POST">
+                        <button type="submit" class="w-full py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-white bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors shadow-sm focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700"><i class="fa-solid fa-xmark mr-1"></i> Bunked</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-white dark:bg-gray-800 rounded-3xl p-12 text-center shadow-sm border border-gray-100 dark:border-gray-700 mb-12">
+            <div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fa-solid fa-folder-open text-4xl text-gray-400"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">No subjects yet</h3>
+            <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8">You haven't added any subjects to track. Add your first subject to start managing your attendance and planning your bunks!</p>
+            <button @click="showAddModal = true" class="bg-primary hover:bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition-transform transform hover:-translate-y-1">
+                <i class="fa-solid fa-plus mr-2"></i> Add First Subject
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- TAB 2: AI & Analytics -->
+    <div x-show="activeTab === 'analytics'" style="display: none;" x-transition:enter="transition-all ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-4" x-transition:enter-end="opacity-100 transform translate-y-0">
+        
+        <!-- AI Suggestion Section -->
+        <div class="mb-10" x-data="{ suggestion: 'Consulting the AI brain...', loaded: false }" x-init="
+            fetch('/api/chatgpt_suggestion')
+                .then(res => res.json())
+                .then(data => { suggestion = data.suggestion; loaded = true; })
+                .catch(err => { suggestion = 'Failed to load advice from the AI mentor.'; loaded = true; })
+        ">
+            <div class="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 p-[3px] rounded-3xl shadow-2xl transform transition-all duration-500 hover:shadow-indigo-500/50">
+                <div class="bg-white dark:bg-gray-900 rounded-[21px] p-8 h-full w-full flex items-start gap-6 text-left">
+                    <div class="flex-shrink-0 w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white shadow-lg" :class="loaded ? 'animate-none' : 'animate-bounce'">
+                        <i class="fa-solid fa-robot text-3xl"></i>
+                    </div>
+                    <div class="flex-grow pt-2">
+                        <h3 class="font-extrabold text-2xl text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600 mb-3">Your AI Buddy</h3>
+                        <p class="text-gray-700 dark:text-gray-300 font-medium leading-relaxed text-lg" x-text="suggestion"></p>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Quick Actions -->
-            <div class="grid grid-cols-2 gap-3 mt-auto">
-                <form action="{{ url_for('quick_action', subject_id=subject.subject_id, action='attend') }}" method="POST">
-                    <button type="submit" class="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-green-500 hover:bg-green-600 transition-colors shadow-sm focus:ring-4 focus:ring-green-100 dark:focus:ring-green-900">
-                        <i class="fa-solid fa-check mr-1"></i> Attended
-                    </button>
-                </form>
-                <form action="{{ url_for('quick_action', subject_id=subject.subject_id, action='bunk') }}" method="POST">
-                    <button type="submit" class="w-full py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-white bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors shadow-sm focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700">
-                        <i class="fa-solid fa-xmark mr-1"></i> Bunked
-                    </button>
-                </form>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    
-    <!-- AI Suggestion Section -->
-    <div class="mb-8" x-data="{ suggestion: 'Consulting the AI brain...', loaded: false }" x-init="
-        fetch('/api/chatgpt_suggestion')
-            .then(res => res.json())
-            .then(data => { suggestion = data.suggestion; loaded = true; })
-            .catch(err => { suggestion = 'Failed to load advice from the AI mentor.'; loaded = true; })
-    ">
-        <div class="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 p-[2px] rounded-3xl shadow-xl transform transition-transform duration-500 hover:scale-[1.01]">
-            <div class="bg-white dark:bg-gray-900 rounded-[22px] p-6 h-full w-full flex items-start gap-5 text-left">
-                <div class="flex-shrink-0 w-14 h-14 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white shadow-lg" :class="loaded ? 'animate-none' : 'animate-pulse'">
-                    <i class="fa-solid fa-robot text-2xl"></i>
-                </div>
-                <div class="flex-grow pt-1">
-                    <h3 class="font-extrabold text-xl text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600 mb-2">Your AI Buddy</h3>
-                    <p class="text-gray-700 dark:text-gray-300 font-medium leading-relaxed text-md" x-text="suggestion"></p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Chart Section -->
-    <div class="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl border-t border-indigo-100 dark:border-gray-700 mb-8 transform transition-transform hover:shadow-2xl" x-data="{ loaded: false }" x-init="
-        fetch('/api/chart_data').then(res=>res.json()).then(data=>{
-            new Chart(document.getElementById('attendanceChart'), {
-                type: 'bar',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'Attendance %',
-                        data: data.data,
-                        backgroundColor: data.data.map(val => val > 75 ? 'rgba(34, 197, 94, 0.85)' : (val == 75 ? 'rgba(234, 179, 8, 0.85)' : 'rgba(239, 68, 68, 0.85)')),
-                        borderRadius: 12,
-                        borderSkipped: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
+        <!-- Chart Section -->
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 mb-8" x-data="{ loaded: false }" x-init="
+            fetch('/api/chart_data').then(res=>res.json()).then(data=>{
+                new Chart(document.getElementById('attendanceChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Attendance %',
+                            data: data.data,
+                            backgroundColor: data.data.map(val => val > 75 ? 'rgba(34, 197, 94, 0.85)' : (val == 75 ? 'rgba(234, 179, 8, 0.85)' : 'rgba(239, 68, 68, 0.85)')),
+                            borderRadius: 12,
+                            borderSkipped: false,
+                            maxBarThickness: 60
+                        }]
                     },
-                    scales: { 
-                        y: { 
-                            beginAtZero: true, 
-                            max: 100,
-                            grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
                         },
-                        x: {
-                            grid: { display: false }
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                max: 100,
+                                grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                            },
+                            x: {
+                                grid: { display: false }
+                            }
                         }
                     }
-                }
+                });
+                loaded = true;
             });
-            loaded = true;
-        });
-    ">
-        <h3 class="text-2xl font-extrabold mb-6 flex items-center gap-3 text-gray-800 dark:text-gray-100"><i class="fa-solid fa-chart-simple text-indigo-500"></i> Attendance Analytics</h3>
-        <div class="h-72">
-            <canvas id="attendanceChart"></canvas>
+        ">
+            <h3 class="text-2xl font-extrabold mb-8 flex items-center gap-3 text-gray-800 dark:text-gray-100"><i class="fa-solid fa-chart-simple text-purple-500"></i> Attendance Analytics</h3>
+            <div class="h-80">
+                <canvas id="attendanceChart"></canvas>
+            </div>
         </div>
     </div>
-
-    {% else %}
-    <div class="bg-white dark:bg-gray-800 rounded-3xl p-12 text-center shadow-sm border border-gray-100 dark:border-gray-700">
-        <div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i class="fa-solid fa-folder-open text-4xl text-gray-400"></i>
-        </div>
-        <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">No subjects yet</h3>
-        <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8">You haven't added any subjects to track. Add your first subject to start managing your attendance and planning your bunks!</p>
-        <button @click="showAddModal = true" class="bg-primary hover:bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition-transform transform hover:-translate-y-1">
-            <i class="fa-solid fa-plus mr-2"></i> Add First Subject
-        </button>
-    </div>
-    {% endif %}
 
     <!-- Add Subject Modal -->
     <div x-show="showAddModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
@@ -234,7 +238,7 @@
                     <h3 class="text-xl font-bold text-gray-900 dark:text-white" id="edit-modal-title">Edit Subject</h3>
                     <button @click="editSubject = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-xmark text-xl"></i></button>
                 </div>
-                <!-- Dynamic form action updated by Alpine -->
+                <!-- Dynamic form action -->
                 <form :action="'/subject/edit/' + editSubject?.subject_id" method="POST">
                     <div class="p-6 space-y-4">
                         <div>
