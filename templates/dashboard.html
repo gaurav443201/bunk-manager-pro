@@ -2,10 +2,19 @@
 {% block title %}Dashboard - Bunk Manager Pro{% endblock %}
 
 {% block content %}
-<div x-data="{ activeTab: 'subjects', showAddModal: false, editSubject: null }">
+<div x-data="{ activeTab: 'subjects', showAddModal: false, editSubject: null, advancedMode: false, uploading: false, uploadSuccess: false, newSubjectType: 'Lecture' }">
 
-    <!-- Overview Header -->
-    <div class="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Overview Header with Advanced Mode Toggle -->
+    <div class="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+        <!-- Advanced Mode Toggle -->
+        <div class="absolute -top-10 right-0 flex items-center bg-white dark:bg-gray-800 px-4 py-2 rounded-full border border-gray-200 dark:border-gray-700 shadow-sm z-10 transition-transform hover:scale-105 cursor-pointer" @click="advancedMode = !advancedMode">
+            <span class="mr-3 text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-indigo-500">Advanced Mode</span>
+            <div class="relative">
+                <div class="block w-10 h-6 bg-gray-300 dark:bg-gray-600 rounded-full transition-colors duration-300" :class="{'bg-purple-500': advancedMode}"></div>
+                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform duration-300" :class="{'translate-x-4': advancedMode}"></div>
+            </div>
+        </div>
+
         <div class="md:col-span-2 glass rounded-2xl p-6 flex flex-col justify-center">
             <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-2">Welcome, {{ session.get('user_name') }}!</h1>
             <p class="text-gray-600 dark:text-gray-400">Here's your attendance overview. Stay safe and manage your bunks wisely.</p>
@@ -16,12 +25,13 @@
                 <i class="fa-solid fa-chart-pie text-9xl"></i>
             </div>
             <p class="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-widest font-bold mb-1">Overall Attendance</p>
-            <div class="text-5xl font-extrabold 
+            <div class="text-5xl font-extrabold flex items-baseline
                 {% if overall_percent > 75 %} text-green-500 
                 {% elif overall_percent >= 75 %} text-yellow-500 
-                {% else %} text-red-500 {% endif %} flex items-baseline">
+                {% else %} text-red-500 {% endif %} ">
                 {{ overall_percent }}<span class="text-2xl ml-1">%</span>
             </div>
+            <p class="text-xs text-gray-400 mt-2">(Excludes specific subjects)</p>
         </div>
     </div>
 
@@ -35,7 +45,7 @@
         <button @click="activeTab = 'analytics'" 
             :class="{'border-b-2 border-purple-500 text-purple-600 dark:text-purple-400 font-bold': activeTab === 'analytics', 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200': activeTab !== 'analytics'}" 
             class="px-6 py-3 font-medium transition-colors text-lg whitespace-nowrap">
-            <i class="fa-solid fa-chart-line mr-2"></i> AI & Analytics
+            <i class="fa-solid fa-robot mr-2"></i> GPT-4 AI Predictor
         </button>
     </div>
 
@@ -44,7 +54,7 @@
         
         <div class="mb-6 flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm">
             <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-list-check text-primary"></i> Track Classes</h2>
-            <button @click="showAddModal = true" class="bg-primary hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all transform hover:scale-105 flex items-center gap-2">
+            <button @click="showAddModal = true; newSubjectType = 'Lecture'" class="bg-primary hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all transform hover:scale-105 flex items-center gap-2">
                 <i class="fa-solid fa-plus"></i> Add Subject
             </button>
         </div>
@@ -52,10 +62,10 @@
         {% if subjects %}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
             {% for subject in subjects %}
-            <div class="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.06)] border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
-                <!-- Context Menu (Edit/Delete) -->
+            <div class="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.06)] border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300 relative overflow-hidden group {% if subject.exclude_attendance %} opacity-75 {% endif %}">
+                <!-- Context Menu -->
                 <div class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button @click="editSubject = {{ subject }}" class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex justify-center items-center hover:bg-blue-200 transition-colors">
+                    <button @click="editSubject = {{ subject|tojson }}" class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex justify-center items-center hover:bg-blue-200 transition-colors">
                         <i class="fa-solid fa-pen text-xs"></i>
                     </button>
                     <form action="{{ url_for('delete_subject', subject_id=subject.subject_id) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this subject?');">
@@ -67,18 +77,26 @@
 
                 <!-- Header -->
                 <div class="mb-4 pr-16">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                            {{ subject.subject_type }}{% if subject.subject_type == 'Practical' and subject.batch %} ({{ subject.batch }}){% endif %}
+                        </span>
+                        {% if subject.exclude_attendance %}
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200">Excluded</span>
+                        {% endif %}
+                    </div>
                     <h3 class="text-xl font-bold text-gray-900 dark:text-white truncate">{{ subject.subject_name }}</h3>
                     <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         <span class="font-medium text-gray-700 dark:text-gray-300">{{ subject.attended_classes }}</span> attended / <span class="font-medium text-gray-700 dark:text-gray-300">{{ subject.total_classes }}</span> total
                     </p>
                 </div>
 
-                <!-- Circular Progress & Alert -->
+                <!-- Circular Progress -->
                 <div class="flex items-center gap-4 mb-5">
                     <div class="relative w-24 h-24 flex-shrink-0">
                         <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                             <path class="text-gray-200 dark:text-gray-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
-                            <path class="{% if subject.status == 'green' %} text-green-500 {% elif subject.status == 'yellow' %} text-yellow-400 {% elif subject.status == 'red' %} text-red-500 {% else %} text-gray-400 {% endif %}" 
+                            <path class="{% if subject.exclude_attendance %} text-gray-400 {% elif subject.status == 'green' %} text-green-500 {% elif subject.status == 'yellow' %} text-yellow-400 {% elif subject.status == 'red' %} text-red-500 {% else %} text-gray-400 {% endif %}" 
                                 stroke-dasharray="{{ subject.attendance_percent }}, 100" 
                                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
                         </svg>
@@ -88,12 +106,16 @@
                     </div>
 
                     <div class="flex-grow">
-                        <div class="p-3 rounded-xl border {% if subject.status == 'green' %} bg-green-50/50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300 {% elif subject.status == 'yellow' %} bg-yellow-50/50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 {% elif subject.status == 'red' %} bg-red-50/50 border-red-200 dark:bg-red-900/20 dark:border-red-800 text-red-800 dark:text-red-300 {% else %} bg-gray-50/50 border-gray-200 dark:bg-gray-800 dark:border-gray-700 text-gray-600 dark:text-gray-400 {% endif %}">
+                        <div class="p-3 rounded-xl border {% if subject.exclude_attendance %} bg-gray-50/50 border-gray-200 text-gray-500 {% elif subject.status == 'green' %} bg-green-50/50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300 {% elif subject.status == 'yellow' %} bg-yellow-50/50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 {% elif subject.status == 'red' %} bg-red-50/50 border-red-200 dark:bg-red-900/20 dark:border-red-800 text-red-800 dark:text-red-300 {% else %} bg-gray-50/50 border-gray-200 dark:bg-gray-800 dark:border-gray-700 text-gray-600 dark:text-gray-400 {% endif %}">
                             <p class="text-sm font-semibold leading-tight">
-                                {% if subject.status == 'green' %}<i class="fa-solid fa-face-smile mr-1"></i>{% endif %}
-                                {% if subject.status == 'yellow' %}<i class="fa-solid fa-triangle-exclamation mr-1"></i>{% endif %}
-                                {% if subject.status == 'red' %}<i class="fa-solid fa-skull mr-1"></i>{% endif %}
-                                {{ subject.message }}
+                                {% if subject.exclude_attendance %}
+                                <i class="fa-solid fa-eye-slash mr-1"></i> Tracking only
+                                {% else %}
+                                    {% if subject.status == 'green' %}<i class="fa-solid fa-face-smile mr-1"></i>{% endif %}
+                                    {% if subject.status == 'yellow' %}<i class="fa-solid fa-triangle-exclamation mr-1"></i>{% endif %}
+                                    {% if subject.status == 'red' %}<i class="fa-solid fa-skull mr-1"></i>{% endif %}
+                                    {{ subject.message }}
+                                {% endif %}
                             </p>
                         </div>
                     </div>
@@ -113,21 +135,48 @@
         </div>
         {% else %}
         <div class="bg-white dark:bg-gray-800 rounded-3xl p-12 text-center shadow-sm border border-gray-100 dark:border-gray-700 mb-12">
-            <div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
-                <i class="fa-solid fa-folder-open text-4xl text-gray-400"></i>
-            </div>
             <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">No subjects yet</h3>
-            <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8">You haven't added any subjects to track. Add your first subject to start managing your attendance and planning your bunks!</p>
-            <button @click="showAddModal = true" class="bg-primary hover:bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition-transform transform hover:-translate-y-1">
-                <i class="fa-solid fa-plus mr-2"></i> Add First Subject
-            </button>
+            <p class="text-gray-500 dark:text-gray-400">Add your first subject to start tracking!</p>
         </div>
         {% endif %}
     </div>
 
     <!-- TAB 2: AI & Analytics -->
-    <div x-show="activeTab === 'analytics'" style="display: none;" x-transition:enter="transition-all ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-4" x-transition:enter-end="opacity-100 transform translate-y-0">
+    <div x-show="activeTab === 'analytics'" style="display: none;" x-transition:enter="transition-all ease-out duration-300">
         
+        <!-- ADVANCED MODE TIMETABLE UPLOADER -->
+        <div x-show="advancedMode" class="mb-10 bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl border border-purple-200 dark:border-purple-800">
+            <h3 class="text-2xl font-extrabold mb-4 flex items-center gap-3 text-purple-600 dark:text-purple-400"><i class="fa-solid fa-eye"></i> GPT-4 Vision Timetable Parsing</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Upload a picture of your Timetable schedule. GPT-4 will read the image and provide proactive Bunk predictions based on what classes you have today!</p>
+            
+            <div class="border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-2xl p-10 text-center hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative cursor-pointer" onclick="document.getElementById('timetableUpload').click()">
+                <div x-show="!uploading && !uploadSuccess">
+                    <i class="fa-solid fa-image text-4xl text-purple-400 mb-3"></i>
+                    <p class="font-bold text-gray-700 dark:text-gray-300">Click to Select Timetable Image</p>
+                </div>
+                <div x-show="uploading">
+                    <i class="fa-solid fa-circle-notch fa-spin text-4xl text-purple-500 mb-3"></i>
+                    <p class="font-bold text-purple-600">GPT-4 is parsing your timetable... please wait.</p>
+                </div>
+                <div x-show="uploadSuccess">
+                    <i class="fa-solid fa-check-circle text-4xl text-green-500 mb-3"></i>
+                    <p class="font-bold text-green-600">Timetable Synchronized Successfully!</p>
+                </div>
+            </div>
+            <input type="file" id="timetableUpload" class="hidden" accept="image/*" @change="
+                uploading = true; uploadSuccess = false;
+                let formData = new FormData();
+                formData.append('timetable', $event.target.files[0]);
+                fetch('/api/upload_timetable', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    uploading = false;
+                    if(data.success) { uploadSuccess = true; setTimeout(() => window.location.reload(), 1500); }
+                    else { alert(data.error); }
+                }).catch(e => { uploading = false; alert('Failed to upload.'); });
+            ">
+        </div>
+
         <!-- AI Suggestion Section -->
         <div class="mb-10" x-data="{ suggestion: 'Consulting the AI brain...', loaded: false }" x-init="
             fetch('/api/chatgpt_suggestion')
@@ -135,20 +184,20 @@
                 .then(data => { suggestion = data.suggestion; loaded = true; })
                 .catch(err => { suggestion = 'Failed to load advice from the AI mentor.'; loaded = true; })
         ">
-            <div class="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 p-[3px] rounded-3xl shadow-2xl transform transition-all duration-500 hover:shadow-indigo-500/50">
+            <div class="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 p-[3px] rounded-3xl shadow-2xl transform transition-all duration-500">
                 <div class="bg-white dark:bg-gray-900 rounded-[21px] p-8 h-full w-full flex items-start gap-6 text-left">
                     <div class="flex-shrink-0 w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white shadow-lg" :class="loaded ? 'animate-none' : 'animate-bounce'">
                         <i class="fa-solid fa-robot text-3xl"></i>
                     </div>
                     <div class="flex-grow pt-2">
-                        <h3 class="font-extrabold text-2xl text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600 mb-3">Your AI Buddy</h3>
-                        <p class="text-gray-700 dark:text-gray-300 font-medium leading-relaxed text-lg" x-text="suggestion"></p>
+                        <h3 class="font-extrabold text-2xl text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600 mb-3">AI Prediction Engine</h3>
+                        <p class="text-gray-700 dark:text-gray-300 font-medium leading-relaxed text-lg whitespace-pre-line" x-text="suggestion"></p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Chart Section -->
+        <!-- Chart -->
         <div class="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 mb-8" x-data="{ loaded: false }" x-init="
             fetch('/api/chart_data').then(res=>res.json()).then(data=>{
                 new Chart(document.getElementById('attendanceChart'), {
@@ -160,105 +209,113 @@
                             data: data.data,
                             backgroundColor: data.data.map(val => val > 75 ? 'rgba(34, 197, 94, 0.85)' : (val == 75 ? 'rgba(234, 179, 8, 0.85)' : 'rgba(239, 68, 68, 0.85)')),
                             borderRadius: 12,
-                            borderSkipped: false,
                             maxBarThickness: 60
                         }]
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false }
-                        },
-                        scales: { 
-                            y: { 
-                                beginAtZero: true, 
-                                max: 100,
-                                grid: { color: 'rgba(156, 163, 175, 0.1)' }
-                            },
-                            x: {
-                                grid: { display: false }
-                            }
-                        }
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, max: 100, grid: { color: 'rgba(156, 163, 175, 0.1)' } }, x: { grid: { display: false } } }
                     }
-                });
-                loaded = true;
+                }); loaded = true;
             });
         ">
-            <h3 class="text-2xl font-extrabold mb-8 flex items-center gap-3 text-gray-800 dark:text-gray-100"><i class="fa-solid fa-chart-simple text-purple-500"></i> Attendance Analytics</h3>
-            <div class="h-80">
-                <canvas id="attendanceChart"></canvas>
-            </div>
+            <h3 class="text-2xl font-extrabold mb-8 flex items-center gap-3"><i class="fa-solid fa-chart-simple text-purple-500"></i> Analytics</h3>
+            <div class="h-80"><canvas id="attendanceChart"></canvas></div>
         </div>
     </div>
 
-    <!-- Add Subject Modal -->
-    <div x-show="showAddModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <!-- Modals (Add / Edit) -->
+    
+    <!-- Add Modal -->
+    <div x-show="showAddModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div x-show="showAddModal" x-transition.opacity class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity backdrop-blur-sm" @click="showAddModal = false"></div>
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div x-show="showAddModal" x-transition class="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div x-show="showAddModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm" @click="showAddModal = false"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            <div x-show="showAddModal" class="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                 <div class="px-6 py-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white" id="modal-title">Add New Subject</h3>
-                    <button @click="showAddModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-xmark text-xl"></i></button>
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white">Add Subject</h3>
+                    <button @click="showAddModal = false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
                 </div>
                 <form action="{{ url_for('add_subject') }}" method="POST">
                     <div class="p-6 space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subject Name</label>
-                            <input type="text" name="subject_name" required class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white">
+                            <label class="block text-sm font-medium mb-1 dark:text-gray-300">Subject Name</label>
+                            <input type="text" name="subject_name" required class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Classes Held</label>
-                                <input type="number" name="total_classes" value="0" min="0" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white">
+                                <label class="block text-sm font-medium mb-1 dark:text-gray-300">Type</label>
+                                <select name="subject_type" x-model="newSubjectType" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="Lecture">Lecture</option>
+                                    <option value="Practical">Practical</option>
+                                </select>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classes Attended</label>
-                                <input type="number" name="attended_classes" value="0" min="0" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white">
+                            <div x-show="newSubjectType === 'Practical'" style="display: none;">
+                                <label class="block text-sm font-medium mb-1 dark:text-gray-300">Batch (Optional)</label>
+                                <input type="text" name="batch" placeholder="e.g. A" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                             </div>
+                        </div>
+                        <div class="mt-2 text-sm bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <label class="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300 font-medium">
+                                <input type="checkbox" name="exclude_attendance" class="rounded text-primary focus:ring-primary w-5 h-5">
+                                Exclude from Overall 75% Calculation
+                                <i class="fa-solid fa-circle-info text-gray-400" title="Check this for subjects like NPTEL or Mentoring"></i>
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">Total Classes</label><input type="number" name="total_classes" value="0" min="0" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:text-white"></div>
+                            <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">Attended</label><input type="number" name="attended_classes" value="0" min="0" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:text-white"></div>
                         </div>
                     </div>
                     <div class="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 flex justify-end gap-3 rounded-b-2xl">
-                        <button type="button" @click="showAddModal = false" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm transition-colors">Cancel</button>
-                        <button type="submit" class="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-indigo-600 rounded-xl shadow-sm transition-colors transform hover:-translate-y-0.5">Add Subject</button>
+                        <button type="submit" class="px-5 py-2 text-sm font-bold text-white bg-primary rounded-xl">Add Subject</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Edit Subject Modal -->
-    <div x-show="editSubject" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="edit-modal-title" role="dialog" aria-modal="true">
+    <!-- Edit Modal -->
+    <div x-show="editSubject" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div x-show="editSubject" x-transition.opacity class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity backdrop-blur-sm" @click="editSubject = null"></div>
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div x-show="editSubject" x-transition class="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div x-show="editSubject" class="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm" @click="editSubject = null"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            <div x-show="editSubject" class="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                 <div class="px-6 py-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white" id="edit-modal-title">Edit Subject</h3>
-                    <button @click="editSubject = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-xmark text-xl"></i></button>
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white">Edit Subject</h3>
+                    <button @click="editSubject = null" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
                 </div>
-                <!-- Dynamic form action -->
                 <form :action="'/subject/edit/' + editSubject?.subject_id" method="POST">
                     <div class="p-6 space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subject Name</label>
-                            <input type="text" name="subject_name" :value="editSubject?.subject_name" required class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white">
+                            <label class="block text-sm font-medium mb-1 dark:text-gray-300">Subject Name</label>
+                            <input type="text" name="subject_name" :value="editSubject?.subject_name" required class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Classes Held</label>
-                                <input type="number" name="total_classes" :value="editSubject?.total_classes" min="0" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white">
+                                <label class="block text-sm font-medium mb-1 dark:text-gray-300">Type</label>
+                                <select name="subject_type" :value="editSubject?.subject_type || 'Lecture'" x-model="editSubject.subject_type" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="Lecture">Lecture</option>
+                                    <option value="Practical">Practical</option>
+                                </select>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classes Attended</label>
-                                <input type="number" name="attended_classes" :value="editSubject?.attended_classes" min="0" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white">
+                            <div x-show="editSubject?.subject_type === 'Practical'">
+                                <label class="block text-sm font-medium mb-1 dark:text-gray-300">Batch (Optional)</label>
+                                <input type="text" name="batch" :value="editSubject?.batch" placeholder="e.g. A" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                             </div>
+                        </div>
+                        <div class="mt-2 text-sm bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <label class="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300 font-medium">
+                                <input type="checkbox" name="exclude_attendance" :checked="editSubject?.exclude_attendance" class="rounded text-primary focus:ring-primary w-5 h-5">
+                                Exclude from Overall 75% Calculation
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">Total Classes</label><input type="number" name="total_classes" :value="editSubject?.total_classes" min="0" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:text-white"></div>
+                            <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">Attended</label><input type="number" name="attended_classes" :value="editSubject?.attended_classes" min="0" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:text-white"></div>
                         </div>
                     </div>
                     <div class="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 flex justify-end gap-3 rounded-b-2xl">
-                        <button type="button" @click="editSubject = null" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm transition-colors">Cancel</button>
-                        <button type="submit" class="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors transform hover:-translate-y-0.5">Save Changes</button>
+                        <button type="submit" class="px-5 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl">Save Changes</button>
                     </div>
                 </form>
             </div>

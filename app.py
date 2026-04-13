@@ -96,8 +96,11 @@ def dashboard():
     for sub in subjects:
         total = sub.get('total_classes', 0)
         attended = sub.get('attended_classes', 0)
-        overall_total += total
-        overall_attended += attended
+        exclude = sub.get('exclude_attendance', False)
+        
+        if not exclude:
+            overall_total += total
+            overall_attended += attended
         
         if total == 0:
             sub['attendance_percent'] = 0.0
@@ -132,6 +135,10 @@ def dashboard():
 @login_required
 def add_subject():
     name = request.form.get('subject_name')
+    subject_type = request.form.get('subject_type', 'Theory')
+    batch = request.form.get('batch', '')
+    exclude_attendance = True if request.form.get('exclude_attendance') == 'on' else False
+    
     total = int(request.form.get('total_classes', 0))
     attended = int(request.form.get('attended_classes', 0))
     user_id = session['user_id']
@@ -148,6 +155,9 @@ def add_subject():
         subject_doc = {
             'user_id': user_id,
             'subject_name': name,
+            'subject_type': subject_type,
+            'batch': batch,
+            'exclude_attendance': exclude_attendance,
             'total_classes': total,
             'attended_classes': attended
         }
@@ -162,6 +172,10 @@ def add_subject():
 @login_required
 def edit_subject(subject_id):
     name = request.form.get('subject_name')
+    subject_type = request.form.get('subject_type', 'Theory')
+    batch = request.form.get('batch', '')
+    exclude_attendance = True if request.form.get('exclude_attendance') == 'on' else False
+    
     total = int(request.form.get('total_classes', 0))
     attended = int(request.form.get('attended_classes', 0))
     user_id = session['user_id']
@@ -175,6 +189,9 @@ def edit_subject(subject_id):
             {'_id': ObjectId(subject_id), 'user_id': user_id},
             {'$set': {
                 'subject_name': name,
+                'subject_type': subject_type,
+                'batch': batch,
+                'exclude_attendance': exclude_attendance,
                 'total_classes': total,
                 'attended_classes': attended
             }}
@@ -224,12 +241,13 @@ def quick_action(subject_id, action):
 def chart_data():
     user_id = session['user_id']
     try:
-        subjects = list(subjects_collection.find({'user_id': user_id}))
+        subjects = list(subjects_collection.find({'user_id': user_id, 'exclude_attendance': {'$ne': True}}))
         
         labels = []
         attendance_rates = []
         for sub in subjects:
-            labels.append(sub.get('subject_name', 'Unknown'))
+            tag = f" ({sub.get('batch')})" if sub.get('subject_type') == 'Practical' else ""
+            labels.append(sub.get('subject_name', 'Unknown') + tag)
             total = sub.get('total_classes', 0)
             attended = sub.get('attended_classes', 0)
             perc = (attended / total * 100) if total > 0 else 0
@@ -257,14 +275,24 @@ def chatgpt_suggestion():
         for sub in subjects:
             t = sub.get('total_classes', 0)
             a = sub.get('attended_classes', 0)
-            overall_total += t
-            overall_attended += a
+            exclude = sub.get('exclude_attendance', False)
+            if not exclude:
+                overall_total += t
+                overall_attended += a
             perc = round((a/t*100), 2) if t > 0 else 0
-            prompt += f"- {sub.get('subject_name')}: {perc}% ({a}/{t})\n"
+            tag = f" ({sub.get('batch')})" if sub.get('subject_type') == 'Practical' else " (Lecture)"
+            prompt += f"- {sub.get('subject_name')}{tag}: {perc}% ({a}/{t})\n"
             
         overall_perc = round((overall_attended/overall_total*100), 2) if overall_total > 0 else 0
         prompt += f"\nMy overall attendance is {overall_perc}%. The minimum required is 75%.\n"
-        prompt += "Give me a short, friendly, bro-like advice in exactly 2-3 sentences. Tell me what I should focus on, if I can relax, or if I'm in danger. Be supportive!"
+        
+        # Add Timetable Context
+        user_doc = db.users.find_one({'_id': user_id})
+        if user_doc and user_doc.get('timetable_context'):
+            prompt += f"\nHere is my weekly timetable schedule: {user_doc.get('timetable_context')}\n"
+            prompt += "\nPlease give me short, chill, bro-like advice in 2-3 sentences. Tell me specifically using my timetable what days/classes I can bunk, or if I'm in danger. Be supportive!"
+        else:
+            prompt += "\nGive me a short, friendly, bro-like advice in exactly 2-3 sentences. Tell me what I should focus on, if I can relax, or if I'm in danger. Be supportive!"
 
         openai_api_key = os.environ.get('OPENAI_API_KEY')
         if not openai_api_key:
@@ -283,6 +311,55 @@ def chatgpt_suggestion():
         
     except Exception as e:
         return jsonify({'suggestion': f"Oops, couldn't access my brain right now! Make sure your OpenAI API key is correct. ({str(e)})"})
+
+import base64
+
+@app.route('/api/upload_timetable', methods=['POST'])
+@login_required
+def upload_timetable():
+    user_id = session['user_id']
+    if 'timetable' not in request.files:
+        return jsonify({'error': 'No image file found'}), 400
+        
+    file = request.files['timetable']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    openai_api_key = os.environ.get('OPENAI_API_KEY')
+    if not openai_api_key:
+        return jsonify({'error': 'OPENAI_API_KEY is missing. AI cannot read images.'}), 400
+        
+    try:
+        import openai
+        client = openai.OpenAI(api_key=openai_api_key)
+        base64_image = base64.b64encode(file.read()).decode('utf-8')
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Parse this timetable. Extract the scheduled classes (lectures and practicals) and batches. Return a summarized paragraph that I can use as context for predicting when I can bunk safely."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                    ],
+                }
+            ],
+            max_tokens=300
+        )
+        
+        parsed_schedule = response.choices[0].message.content.strip()
+        
+        # Save to DB
+        db.users.update_one(
+            {'_id': user_id},
+            {'$set': {'timetable_context': parsed_schedule}},
+            upsert=True
+        )
+        
+        return jsonify({'success': True, 'message': 'Timetable parsed and saved successfully!', 'data': parsed_schedule})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
