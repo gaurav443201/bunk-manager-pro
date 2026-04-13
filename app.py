@@ -239,5 +239,50 @@ def chart_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+import openai
+
+@app.route('/api/chatgpt_suggestion')
+@login_required
+def chatgpt_suggestion():
+    user_id = session['user_id']
+    try:
+        subjects = list(subjects_collection.find({'user_id': user_id}))
+        
+        if not subjects:
+            return jsonify({'suggestion': "You don't have any subjects right now! Add some classes and I'll give you a personalized strategy."})
+            
+        prompt = "I am a college student requesting advice from a friendly, chill buddy. Here is my current attendance:\n"
+        overall_total = 0
+        overall_attended = 0
+        for sub in subjects:
+            t = sub.get('total_classes', 0)
+            a = sub.get('attended_classes', 0)
+            overall_total += t
+            overall_attended += a
+            perc = round((a/t*100), 2) if t > 0 else 0
+            prompt += f"- {sub.get('subject_name')}: {perc}% ({a}/{t})\n"
+            
+        overall_perc = round((overall_attended/overall_total*100), 2) if overall_total > 0 else 0
+        prompt += f"\nMy overall attendance is {overall_perc}%. The minimum required is 75%.\n"
+        prompt += "Give me a short, friendly, bro-like advice in exactly 2-3 sentences. Tell me what I should focus on, if I can relax, or if I'm in danger. Be supportive!"
+
+        openai_api_key = os.environ.get('OPENAI_API_KEY')
+        if not openai_api_key:
+            return jsonify({'suggestion': "Hey bro! Set up your OPENAI_API_KEY in the environment variables, and I'll give you a custom attendance strategy using AI! For now, just try to keep everything above 75%!"})
+            
+        client = openai.OpenAI(api_key=openai_api_key)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a friendly, chill college buddy helping your friend manage their class attendance."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150
+        )
+        return jsonify({'suggestion': response.choices[0].message.content.strip()})
+        
+    except Exception as e:
+        return jsonify({'suggestion': f"Oops, couldn't access my brain right now! Make sure your OpenAI API key is correct. ({str(e)})"})
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
