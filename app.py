@@ -3,10 +3,11 @@ import math
 import threading
 import time
 import urllib.request
-import mysql.connector
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from dotenv import load_dotenv
+from pymongo import MongoClient
+from bson.objectid import ObjectId
 
 load_dotenv()
 
@@ -26,18 +27,11 @@ def keep_awake():
 
 threading.Thread(target=keep_awake, daemon=True).start()
 
-# MySQL Database configuration
-DB_CONFIG = {
-    'host': os.environ.get('DB_HOST', 'localhost'),
-    'user': os.environ.get('DB_USER', 'root'),
-    'password': os.environ.get('DB_PASSWORD', '443201'), 
-    'database': os.environ.get('DB_NAME', 'bunk_manager'),
-    'port': int(os.environ.get('DB_PORT', 3306))
-}
-
-def get_db():
-    conn = mysql.connector.connect(**DB_CONFIG)
-    return conn
+# MongoDB Configuration
+MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
+client = MongoClient(MONGO_URI)
+db = client.get_database('bunk_manager')
+subjects_collection = db.subjects
 
 def login_required(f):
     @wraps(f)
@@ -64,18 +58,6 @@ def login():
         if email == 'gaurav443201' and password == '443201':
             session['user_id'] = 1
             session['user_name'] = 'Gaurav (Teacher)'
-            
-            # Ensure the user exists in MySQL to prevent foreign key constraint errors
-            try:
-                conn = get_db()
-                cursor = conn.cursor()
-                cursor.execute("INSERT IGNORE INTO users (id, name, email, password) VALUES (1, 'Gaurav', 'gaurav443201', '443201')")
-                conn.commit()
-                cursor.close()
-                conn.close()
-            except Exception as e:
-                pass
-                
             flash("Logged in successfully!", "success")
             return redirect(url_for('dashboard'))
         else:
@@ -93,27 +75,26 @@ def logout():
 @login_required
 def dashboard():
     user_id = session['user_id']
-    subjects = []
     
     try:
-        conn = get_db()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM subjects WHERE user_id = %s", (user_id,))
-        subjects = cursor.fetchall()
+        # Fetch all subjects for this user
+        subjects_cursor = subjects_collection.find({'user_id': user_id})
+        subjects = list(subjects_cursor)
+        
+        # Convert ObjectId to string so it can be used in HTML
+        for sub in subjects:
+            sub['subject_id'] = str(sub['_id'])
     except Exception as e:
         flash(f"Database error: {e}", "danger")
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
+        subjects = []
             
     # Process attendance logic
     overall_total = 0
     overall_attended = 0
     
     for sub in subjects:
-        total = sub['total_classes']
-        attended = sub['attended_classes']
+        total = sub.get('total_classes', 0)
+        attended = sub.get('attended_classes', 0)
         overall_total += total
         overall_attended += attended
         
@@ -163,22 +144,20 @@ def add_subject():
         return redirect(url_for('dashboard'))
         
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO subjects (user_id, subject_name, total_classes, attended_classes) VALUES (%s, %s, %s, %s)",
-                       (user_id, name, total, attended))
-        conn.commit()
+        subject_doc = {
+            'user_id': user_id,
+            'subject_name': name,
+            'total_classes': total,
+            'attended_classes': attended
+        }
+        subjects_collection.insert_one(subject_doc)
         flash("Subject added successfully!", "success")
     except Exception as e:
         flash(f"Database error: {e}", "danger")
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
             
     return redirect(url_for('dashboard'))
 
-@app.route('/subject/edit/<int:subject_id>', methods=['POST'])
+@app.route('/subject/edit/<subject_id>', methods=['POST'])
 @login_required
 def edit_subject(subject_id):
     name = request.form.get('subject_name')
@@ -191,60 +170,51 @@ def edit_subject(subject_id):
         return redirect(url_for('dashboard'))
         
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE subjects SET subject_name=%s, total_classes=%s, attended_classes=%s WHERE subject_id=%s AND user_id=%s",
-                       (name, total, attended, subject_id, user_id))
-        conn.commit()
+        subjects_collection.update_one(
+            {'_id': ObjectId(subject_id), 'user_id': user_id},
+            {'$set': {
+                'subject_name': name,
+                'total_classes': total,
+                'attended_classes': attended
+            }}
+        )
         flash("Subject updated!", "success")
     except Exception as e:
         flash(f"Database error: {e}", "danger")
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
             
     return redirect(url_for('dashboard'))
 
-@app.route('/subject/delete/<int:subject_id>', methods=['POST'])
+@app.route('/subject/delete/<subject_id>', methods=['POST'])
 @login_required
 def delete_subject(subject_id):
     user_id = session['user_id']
     
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM subjects WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
-        conn.commit()
+        subjects_collection.delete_one({'_id': ObjectId(subject_id), 'user_id': user_id})
         flash("Subject deleted!", "success")
     except Exception as e:
         flash(f"Database error: {e}", "danger")
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
             
     return redirect(url_for('dashboard'))
 
-@app.route('/subject/quick_add/<int:subject_id>/<action>', methods=['POST'])
+@app.route('/subject/quick_add/<subject_id>/<action>', methods=['POST'])
 @login_required
 def quick_action(subject_id, action):
     user_id = session['user_id']
     
     try:
-        conn = get_db()
-        cursor = conn.cursor()
         if action == 'attend':
-            cursor.execute("UPDATE subjects SET total_classes=total_classes+1, attended_classes=attended_classes+1 WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
+            subjects_collection.update_one(
+                {'_id': ObjectId(subject_id), 'user_id': user_id},
+                {'$inc': {'total_classes': 1, 'attended_classes': 1}}
+            )
         elif action == 'bunk':
-            cursor.execute("UPDATE subjects SET total_classes=total_classes+1 WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
-        conn.commit()
+            subjects_collection.update_one(
+                {'_id': ObjectId(subject_id), 'user_id': user_id},
+                {'$inc': {'total_classes': 1}}
+            )
     except Exception as e:
         flash(f"Database error: {e}", "danger")
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
             
     return redirect(url_for('dashboard'))
     
@@ -253,25 +223,20 @@ def quick_action(subject_id, action):
 def chart_data():
     user_id = session['user_id']
     try:
-        conn = get_db()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT subject_name, total_classes, attended_classes FROM subjects WHERE user_id = %s", (user_id,))
-        subjects = cursor.fetchall()
+        subjects = list(subjects_collection.find({'user_id': user_id}))
         
         labels = []
         attendance_rates = []
         for sub in subjects:
-            labels.append(sub['subject_name'])
-            perc = (sub['attended_classes'] / sub['total_classes'] * 100) if sub['total_classes'] > 0 else 0
+            labels.append(sub.get('subject_name', 'Unknown'))
+            total = sub.get('total_classes', 0)
+            attended = sub.get('attended_classes', 0)
+            perc = (attended / total * 100) if total > 0 else 0
             attendance_rates.append(round(perc, 2))
             
         return jsonify({'labels': labels, 'data': attendance_rates})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
