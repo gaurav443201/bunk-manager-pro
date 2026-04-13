@@ -1,10 +1,9 @@
+import os
+import math
+import sqlite3
+from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-import mysql.connector
-from mysql.connector import Error
-import math
-import os
-from functools import wraps
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,19 +11,33 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_super_secret_key_here')
 
-# Database configuration
-# Uses environment variables for production (Render), defaults to local dev setup
-DB_CONFIG = {
-    'host': os.environ.get('DB_HOST', 'localhost'),
-    'user': os.environ.get('DB_USER', 'root'),
-    'password': os.environ.get('DB_PASSWORD', ''), 
-    'database': os.environ.get('DB_NAME', 'bunk_manager'),
-    'port': int(os.environ.get('DB_PORT', 3306))
-}
+DATABASE = 'database.db'
 
 def get_db():
-    conn = mysql.connector.connect(**DB_CONFIG)
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
     return conn
+
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        email TEXT UNIQUE NOT NULL,
+                        password TEXT NOT NULL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS subjects (
+                        subject_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        subject_name TEXT NOT NULL,
+                        total_classes INTEGER NOT NULL DEFAULT 0,
+                        attended_classes INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)''')
+    conn.commit()
+    conn.close()
+
+# Initialize automatically
+init_db()
 
 def login_required(f):
     @wraps(f)
@@ -35,7 +48,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Routes
 @app.route('/')
 def index():
     if 'user_id' in session:
@@ -44,37 +56,8 @@ def index():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if request.method == 'POST':
-        name = request.form.get('name')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        if not name or not email or not password:
-            flash("All fields are required!", "danger")
-            return redirect(url_for('register'))
-            
-        hashed_password = generate_password_hash(password)
-        
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-            if cursor.fetchone():
-                flash("Email already exists!", "danger")
-            else:
-                cursor.execute("INSERT INTO users (name, email, password) VALUES (%s, %s, %s)", 
-                               (name, email, hashed_password))
-                conn.commit()
-                flash("Registration successful! Please login.", "success")
-                return redirect(url_for('login'))
-        except Error as e:
-            flash(f"Database error: {e}", "danger")
-        finally:
-            if 'conn' in locals() and conn.is_connected():
-                cursor.close()
-                conn.close()
-                
-    return render_template('register.html')
+    flash("Registration is disabled. Please use the teacher login.", "warning")
+    return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -82,26 +65,15 @@ def login():
         email = request.form.get('email')
         password = request.form.get('password')
         
-        try:
-            conn = get_db()
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-            user = cursor.fetchone()
+        # Hardcoded teacher login
+        if email == 'gaurav443201' and password == '443201':
+            session['user_id'] = 1
+            session['user_name'] = 'Gaurav (Teacher)'
+            flash("Logged in successfully!", "success")
+            return redirect(url_for('dashboard'))
+        else:
+            flash("Invalid credentials! Use Username: gaurav443201, Password: 443201", "danger")
             
-            if user and check_password_hash(user['password'], password):
-                session['user_id'] = user['id']
-                session['user_name'] = user['name']
-                flash("Logged in successfully!", "success")
-                return redirect(url_for('dashboard'))
-            else:
-                flash("Invalid email or password", "danger")
-        except Error as e:
-            flash(f"Database error: {e}", "danger")
-        finally:
-            if 'conn' in locals() and conn.is_connected():
-                cursor.close()
-                conn.close()
-                
     return render_template('login.html')
 
 @app.route('/logout')
@@ -118,14 +90,14 @@ def dashboard():
     
     try:
         conn = get_db()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM subjects WHERE user_id = %s", (user_id,))
-        subjects = cursor.fetchall()
-    except Error as e:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM subjects WHERE user_id = ?", (user_id,))
+        subjects_rows = cursor.fetchall()
+        subjects = [dict(row) for row in subjects_rows]
+    except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
+        if 'conn' in locals():
             conn.close()
             
     # Process attendance logic
@@ -186,15 +158,14 @@ def add_subject():
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO subjects (user_id, subject_name, total_classes, attended_classes) VALUES (%s, %s, %s, %s)",
+        cursor.execute("INSERT INTO subjects (user_id, subject_name, total_classes, attended_classes) VALUES (?, ?, ?, ?)",
                        (user_id, name, total, attended))
         conn.commit()
         flash("Subject added successfully!", "success")
-    except Error as e:
+    except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
+        if 'conn' in locals():
             conn.close()
             
     return redirect(url_for('dashboard'))
@@ -214,15 +185,14 @@ def edit_subject(subject_id):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("UPDATE subjects SET subject_name=%s, total_classes=%s, attended_classes=%s WHERE subject_id=%s AND user_id=%s",
+        cursor.execute("UPDATE subjects SET subject_name=?, total_classes=?, attended_classes=? WHERE subject_id=? AND user_id=?",
                        (name, total, attended, subject_id, user_id))
         conn.commit()
         flash("Subject updated!", "success")
-    except Error as e:
+    except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
+        if 'conn' in locals():
             conn.close()
             
     return redirect(url_for('dashboard'))
@@ -235,14 +205,13 @@ def delete_subject(subject_id):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM subjects WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
+        cursor.execute("DELETE FROM subjects WHERE subject_id=? AND user_id=?", (subject_id, user_id))
         conn.commit()
         flash("Subject deleted!", "success")
-    except Error as e:
+    except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
+        if 'conn' in locals():
             conn.close()
             
     return redirect(url_for('dashboard'))
@@ -256,15 +225,14 @@ def quick_action(subject_id, action):
         conn = get_db()
         cursor = conn.cursor()
         if action == 'attend':
-            cursor.execute("UPDATE subjects SET total_classes=total_classes+1, attended_classes=attended_classes+1 WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
+            cursor.execute("UPDATE subjects SET total_classes=total_classes+1, attended_classes=attended_classes+1 WHERE subject_id=? AND user_id=?", (subject_id, user_id))
         elif action == 'bunk':
-            cursor.execute("UPDATE subjects SET total_classes=total_classes+1 WHERE subject_id=%s AND user_id=%s", (subject_id, user_id))
+            cursor.execute("UPDATE subjects SET total_classes=total_classes+1 WHERE subject_id=? AND user_id=?", (subject_id, user_id))
         conn.commit()
-    except Error as e:
+    except Exception as e:
         flash(f"Database error: {e}", "danger")
     finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
+        if 'conn' in locals():
             conn.close()
             
     return redirect(url_for('dashboard'))
@@ -275,23 +243,23 @@ def chart_data():
     user_id = session['user_id']
     try:
         conn = get_db()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT subject_name, total_classes, attended_classes FROM subjects WHERE user_id = %s", (user_id,))
-        subjects = cursor.fetchall()
+        cursor = conn.cursor()
+        cursor.execute("SELECT subject_name, total_classes, attended_classes FROM subjects WHERE user_id = ?", (user_id,))
+        rows = cursor.fetchall()
+        subjects_data = [{"subject_name": row["subject_name"], "total_classes": row["total_classes"], "attended_classes": row["attended_classes"]} for row in rows]
         
         labels = []
         attendance_rates = []
-        for sub in subjects:
+        for sub in subjects_data:
             labels.append(sub['subject_name'])
             perc = (sub['attended_classes'] / sub['total_classes'] * 100) if sub['total_classes'] > 0 else 0
             attendance_rates.append(round(perc, 2))
             
         return jsonify({'labels': labels, 'data': attendance_rates})
-    except Error as e:
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
+        if 'conn' in locals():
             conn.close()
 
 if __name__ == '__main__':
