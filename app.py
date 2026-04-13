@@ -1,5 +1,8 @@
 import os
 import math
+import threading
+import time
+import urllib.request
 import mysql.connector
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
@@ -9,6 +12,19 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_super_secret_key_here')
+
+# Background thread to keep Render server awake
+def keep_awake():
+    app_url = os.environ.get('RENDER_EXTERNAL_URL')
+    if app_url:
+        while True:
+            try:
+                time.sleep(600)  # Ping every 10 minutes
+                urllib.request.urlopen(app_url)
+            except Exception:
+                pass
+
+threading.Thread(target=keep_awake, daemon=True).start()
 
 # MySQL Database configuration
 DB_CONFIG = {
