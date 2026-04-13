@@ -82,9 +82,10 @@ def dashboard():
         subjects_cursor = subjects_collection.find({'user_id': user_id})
         subjects = list(subjects_cursor)
         
-        # Convert ObjectId to string so it can be used in HTML
+        # Convert ObjectId to string so it can be used in HTML and JSON serialization
         for sub in subjects:
             sub['subject_id'] = str(sub['_id'])
+            del sub['_id']  # Remove raw ObjectId to prevent JSON serialization crashes
     except Exception as e:
         flash(f"Database error: {e}", "danger")
         subjects = []
