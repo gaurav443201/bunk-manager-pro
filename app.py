@@ -323,147 +323,46 @@ def chatgpt_suggestion():
     except Exception as e:
         return jsonify({'suggestion': f"Oops, couldn't access my brain right now! Make sure your OpenAI API key is correct. ({str(e)})"})
 
-import base64
-import fitz  # PyMuPDF
+from curriculum import get_curriculum
 
-@app.route('/api/upload_timetable', methods=['POST'])
+@app.route('/api/sync_timetable', methods=['POST'])
 @login_required
-def upload_timetable():
+def sync_timetable():
     user_id = session['user_id']
-    if 'timetable' not in request.files:
-        return jsonify({'error': 'No file found'}), 400
-        
-    file = request.files['timetable']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
+    division = request.form.get('division', '').upper().strip()
+    batch = request.form.get('batch', '').upper().strip()
 
-    openai_api_key = os.environ.get('OPENAI_API_KEY')
-    if not openai_api_key:
-        return jsonify({'error': 'OPENAI_API_KEY is missing. AI cannot read files.'}), 400
-        
+    if division not in ('A', 'B') or batch not in ('A', 'B', 'C', 'D'):
+        return jsonify({'error': 'Please select a valid Division (A or B) and Batch (A, B, C or D).'}), 400
+
     try:
-        import openai
-        client = openai.OpenAI(api_key=openai_api_key)
-        
-        file_bytes = file.read()
-        filename = file.filename.lower()
-        
-        if filename.endswith('.pdf'):
-            # Instantly convert the PDF into a clear image array using PyMuPDF
-            pdf_document = fitz.open(stream=file_bytes, filetype="pdf")
-            page = pdf_document.load_page(0)  # Grab the first page
-            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # High resolution
-            base64_image = base64.b64encode(pix.tobytes("jpeg")).decode('utf-8')
-        else:
-            base64_image = base64.b64encode(file_bytes).decode('utf-8')
-        
-        import json
-        
-        division = request.form.get('division', '')
-        branch = request.form.get('branch', '')
-        
-        sys_prompt = (
-            "You are an expert OCR timetable parser extracting data to JSON.\n"
-            "Return JSON strictly in this format: {\"subjects\": [...], \"daily_schedule\": {\"Monday\": [{\"subject_name\": \"...\", \"subject_type\": \"...\"}], \"Tuesday\": [...]}, \"summary\": \"...\"}\n"
-            "=== SUBJECTS REFERENCE LIST ===\n"
-            "Here is the standard naming string format for subjects. ONLY output actual subjects occurring in the timetable for the requested Batch & Division. DO NOT output practicals that belong to other batches!\n"
-            "- {\"subject_name\": \"Discrete Mathematics\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Computer Organization\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Open Elective\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Internet of Things\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Environmental Studies\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"MIL\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"MIL\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Engineering Project Development\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Engineering Project Development Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Web Development Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Microprocessor Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Database Management System\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Database Management System Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Data Structures and Algorithms Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "=== TIMETABLE MAPPING & RULES ===\n"
-            "1. LECTURES FOR ALL BATCHES: Lectures listed on a day apply to ALL batches. So map every Lecture listed for a specific day to the `daily_schedule` and `subjects` list.\n"
-            "2. BATCH SPECIFIC PRACTICALS: ONLY map and output Practicals that correspond to the user's specific Batch and Division. DO NOT include DSAL or other labs in the `subjects` array if they don't belong to the user's batch!\n"
-            "3. DURATION WEIGHTING: All Practicals (and Labs) are 2 hours long. You MUST add TWO identical entry objects for any Practical in the `daily_schedule` array for that day! Lectures are 1 hour, so add ONE entry for lectures.\n"
-            "4. WEB DEVELOPMENT RULE: There are NO lectures for Web Development, ONLY practicals! Do NOT generate or map a Web Development Lecture.\n"
-        )
-        
-        if division or branch:
-            sys_prompt += f"For the 'batch' fields above that say 'string', replace them with the user's specific batch '{branch}'. Only map the classes for Division '{division}' and Batch '{branch}' to the daily_schedule.\n"
-        
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "system",
-                    "content": sys_prompt
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Extract the subjects and summary from this timetable image to JSON format."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ],
-                }
-            ],
-            max_tokens=2000
-        )
-        
-        try:
-            data_json = json.loads(response.choices[0].message.content.strip())
-        except json.JSONDecodeError:
-            return jsonify({'error': 'AI encountered an error compiling your timetable data (Response too large). Please try again.'}), 500
-            
-        # Insert subjects to MongoDB
-        extracted_subjects = data_json.get('subjects', [])
+        extracted_subjects, daily_schedule = get_curriculum(division, batch)
+
         added_count = 0
         for sub in extracted_subjects:
-            s_name = sub.get('subject_name')
-            if not s_name: continue
-            s_type = sub.get('subject_type', 'Lecture')
-            s_batch = sub.get('batch', '')
-            exclude = sub.get('exclude_attendance', False)
-            
-            # Hardcoded fixes
-            if 'Web Development' in s_name and s_type == 'Lecture':
-                continue
-            if 'Web Development' in s_name and s_type == 'Practical':
-                s_name = 'Web Development Lab'
-            
-            # Upsert ensures we don't overwrite attended_classes if it already exists!
+            s_name = sub['subject_name']
+            s_type = sub['subject_type']
+            s_batch = sub['batch']
             res = subjects_collection.update_one(
-                {
-                    'user_id': user_id, 
-                    'subject_name': s_name, 
-                    'subject_type': s_type,
-                    'batch': s_batch
-                },
-                {
-                    '$setOnInsert': {
-                        'exclude_attendance': exclude,
-                        'total_classes': 0,
-                        'attended_classes': 0
-                    }
-                },
+                {'user_id': user_id, 'subject_name': s_name, 'subject_type': s_type, 'batch': s_batch},
+                {'$setOnInsert': {'exclude_attendance': False, 'total_classes': 0, 'attended_classes': 0}},
                 upsert=True
             )
             if res.upserted_id:
                 added_count += 1
-        
-        parsed_schedule = data_json.get('summary', 'Timetable synced.')
-        daily_schedule = data_json.get('daily_schedule', {})
-        
-        # Save summary string to Context for ChatGPT Prediction
+
+        context = f"SE-{division} Division, Batch {batch} master timetable synced."
         db.users.update_one(
             {'_id': user_id},
-            {'$set': {'timetable_context': parsed_schedule, 'daily_schedule': daily_schedule}},
+            {'$set': {'timetable_context': context, 'daily_schedule': daily_schedule}},
             upsert=True
         )
-        
-        return jsonify({'success': True, 'message': f'Timetable AI added {added_count} new subjects automatically!', 'data': parsed_schedule})
+
+        return jsonify({'success': True, 'message': f'Timetable synced! {added_count} new subjects added.', 'data': context})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
 
 @app.route('/api/quick_day_action', methods=['POST'])
 @login_required
@@ -474,7 +373,7 @@ def quick_day_action():
     
     user_doc = db.users.find_one({'_id': user_id})
     if not user_doc or not user_doc.get('daily_schedule'):
-        flash("Please upload your timetable first using Advanced Mode so the AI can map your daily schedules!", "danger")
+        flash("Please sync your timetable first! Click 'Sync My Timetable' in the Advanced Mode tab and select your Division and Batch.", "danger")
         return redirect(url_for('dashboard'))
         
     schedule = user_doc['daily_schedule'].get(day, [])
