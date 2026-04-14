@@ -93,7 +93,7 @@
             <div class="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-[0_4px_24px_rgb(0,0,0,0.06)] border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300 relative overflow-hidden group {% if subject.exclude_attendance %} opacity-75 {% endif %}">
                 <!-- Context Menu -->
                 <div class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button @click="editSubject = {{ subject|tojson }}" class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex justify-center items-center hover:bg-blue-200 transition-colors">
+                    <button @click.stop="editSubject = {{ subject|tojson }}" class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex justify-center items-center hover:bg-blue-200 transition-colors">
                         <i class="fa-solid fa-pen text-xs"></i>
                     </button>
                     <form action="{{ url_for('delete_subject', subject_id=subject.subject_id) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this subject?');">
@@ -366,7 +366,9 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium mb-1 dark:text-gray-300">Type</label>
-                                <select name="subject_type" :value="editSubject?.subject_type || 'Lecture'" x-model="editSubject.subject_type" class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <select name="subject_type" id="editSubjectType"
+                                    x-effect="if(editSubject) $el.value = editSubject.subject_type"
+                                    class="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     <option value="Lecture">Lecture</option>
                                     <option value="Practical">Practical</option>
                                 </select>
