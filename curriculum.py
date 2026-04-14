@@ -80,16 +80,20 @@ def get_curriculum(division, batch):
         # ── MONDAY ──────────────────────────────────────────────
         for l in ["Database Management System", "Open Elective", "Discrete Mathematics"]:
             lec("Monday", l)
-        if batch == 'A':   prac("Monday", "Database Management System Lab")
+        if batch == 'A':
+            prac("Monday", "Database Management System Lab")
+            prac("Monday", "Engineering Project Development Lab")
         elif batch == 'B': prac("Monday", "Modern Indian Languages")
-        elif batch == 'C': prac("Monday", "Web Development Lab")
+        elif batch == 'C':
+            prac("Monday", "Web Development Lab")
+            prac("Monday", "Modern Indian Languages")
         # batch D: no practical
 
         # ── TUESDAY ─────────────────────────────────────────────
         for l in ["Computer Organization", "Internet of Things", "Database Management System"]:
             lec("Tuesday", l)
-        # batch A: no practical
-        if batch == 'B': prac("Tuesday", "Database Management System Lab")
+        if batch == 'A': prac("Tuesday", "Web Development Lab")
+        elif batch == 'B': prac("Tuesday", "Database Management System Lab")
         elif batch == 'C':
             prac("Tuesday", "Microprocessor Lab")
             prac("Tuesday", "Web Development Lab")
@@ -98,16 +102,18 @@ def get_curriculum(division, batch):
         # ── WEDNESDAY ───────────────────────────────────────────
         for l in ["Open Elective", "Modern Indian Languages", "Discrete Mathematics"]:
             lec("Wednesday", l)
-        # batch A: no practical
-        if batch == 'B': prac("Wednesday", "Microprocessor Lab")
+        if batch == 'A': prac("Wednesday", "Web Development Lab")
+        elif batch == 'B': prac("Wednesday", "Microprocessor Lab")
         # batch C: no practical
         elif batch == 'D': prac("Wednesday", "Database Management System Lab")
 
         # ── THURSDAY ────────────────────────────────────────────
         for l in ["Internet of Things", "Discrete Mathematics", "Database Management System"]:
             lec("Thursday", l)
-        # batch A: no practical
-        if batch == 'B': prac("Thursday", "Web Development Lab")
+        if batch == 'A':
+            prac("Thursday", "Microprocessor Lab")
+            prac("Thursday", "Modern Indian Languages")
+        elif batch == 'B': prac("Thursday", "Web Development Lab")
         elif batch == 'C': prac("Thursday", "Database Management System Lab")
         elif batch == 'D': prac("Thursday", "Engineering Project Development Lab")
 
@@ -116,5 +122,6 @@ def get_curriculum(division, batch):
             lec("Friday", l)
         # batches A, B, C: no practical
         if batch == 'D': prac("Friday", "Modern Indian Languages")
+
 
     return list(subjects_dict.values()), daily_schedule
