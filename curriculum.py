@@ -61,7 +61,9 @@ def get_curriculum(division, batch):
         # ── THURSDAY ────────────────────────────────────────────
         for l in ["Internet of Things", "Discrete Mathematics", "Database Management System"]:
             lec("Thursday", l)
-        if batch == 'A':   prac("Thursday", "Database Management System Lab")
+        if batch == 'A':
+            prac("Thursday", "Microprocessor Lab")
+            prac("Thursday", "Modern Indian Languages")
         elif batch == 'B': prac("Thursday", "Web Development Lab")
         elif batch == 'C': prac("Thursday", "Database Management System Lab")
         elif batch == 'D': prac("Thursday", "Engineering Project Development Lab")
