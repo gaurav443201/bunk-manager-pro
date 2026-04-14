@@ -365,8 +365,8 @@ def upload_timetable():
         sys_prompt = (
             "You are an expert OCR timetable parser extracting data to JSON.\n"
             "Return JSON strictly in this format: {\"subjects\": [...], \"daily_schedule\": {\"Monday\": [{\"subject_name\": \"...\", \"subject_type\": \"...\"}], \"Tuesday\": [...]}, \"summary\": \"...\"}\n"
-            "=== MANDATORY SUBJECTS LIST ===\n"
-            "Regardless of how blurry the image is, you MUST output ALL of the following objects in your `subjects` JSON array. Do not miss a single one:\n"
+            "=== SUBJECTS REFERENCE LIST ===\n"
+            "Here is the standard naming string format for subjects. ONLY output actual subjects occurring in the timetable for the requested Batch & Division. DO NOT output practicals that belong to other batches!\n"
             "- {\"subject_name\": \"Discrete Mathematics\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
             "- {\"subject_name\": \"Computer Organization\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
             "- {\"subject_name\": \"Open Elective\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
@@ -382,8 +382,8 @@ def upload_timetable():
             "- {\"subject_name\": \"Database Management System Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
             "- {\"subject_name\": \"Data Structures and Algorithms Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
             "=== TIMETABLE MAPPING & RULES ===\n"
-            "1. LECTURES FOR ALL BATCHES: Lectures listed on a day apply to ALL batches. So map every Lecture listed for a specific day into the `daily_schedule`.\n"
-            "2. BATCH SPECIFIC PRACTICALS: ONLY map the Practicals to the `daily_schedule` that correspond to the user's specific Batch and Division.\n"
+            "1. LECTURES FOR ALL BATCHES: Lectures listed on a day apply to ALL batches. So map every Lecture listed for a specific day to the `daily_schedule` and `subjects` list.\n"
+            "2. BATCH SPECIFIC PRACTICALS: ONLY map and output Practicals that correspond to the user's specific Batch and Division. DO NOT include DSAL or other labs in the `subjects` array if they don't belong to the user's batch!\n"
             "3. DURATION WEIGHTING: All Practicals (and Labs) are 2 hours long. You MUST add TWO identical entry objects for any Practical in the `daily_schedule` array for that day! Lectures are 1 hour, so add ONE entry for lectures.\n"
             "4. WEB DEVELOPMENT RULE: There are NO lectures for Web Development, ONLY practicals! Do NOT generate or map a Web Development Lecture.\n"
         )
