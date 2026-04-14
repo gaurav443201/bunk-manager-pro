@@ -364,25 +364,28 @@ def upload_timetable():
         
         sys_prompt = (
             "You are an expert OCR timetable parser extracting data to JSON.\n"
-            "Return JSON strictly in this format: {\"subjects\": [...], \"daily_schedule\": {...}, \"summary\": \"...\"}\n"
+            "Return JSON strictly in this format: {\"subjects\": [...], \"daily_schedule\": {\"Monday\": [{\"subject_name\": \"...\", \"subject_type\": \"...\"}], \"Tuesday\": [...]}, \"summary\": \"...\"}\n"
             "=== MANDATORY SUBJECTS LIST ===\n"
             "Regardless of how blurry the image is, you MUST output ALL of the following objects in your `subjects` JSON array. Do not miss a single one:\n"
             "- {\"subject_name\": \"Discrete Mathematics\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Computer Org and Microprocessor\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Computer Organization\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
             "- {\"subject_name\": \"Open Elective\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
             "- {\"subject_name\": \"Internet of Things\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
             "- {\"subject_name\": \"Environmental Studies\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Modern Indian Languages\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Modern Indian Languages\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Web Development\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Web Development\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Engineering Product Design\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Engineering Product Design\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"MIL\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"MIL\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Engineering Project Development\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Engineering Project Development Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Web Development Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
             "- {\"subject_name\": \"Microprocessor Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Database Management Systems\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
-            "- {\"subject_name\": \"Database Management Systems\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
-            "=== TIMETABLE MAPPING ===\n"
-            "Now look at the image. Parse the schedule to map these subjects into the `daily_schedule` object (Monday through Saturday). "
+            "- {\"subject_name\": \"Database Management System\", \"subject_type\": \"Lecture\", \"batch\": \"\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Database Management System Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "- {\"subject_name\": \"Data Structures and Algorithms Lab\", \"subject_type\": \"Practical\", \"batch\": \"string\", \"exclude_attendance\": false}\n"
+            "=== TIMETABLE MAPPING & RULES ===\n"
+            "1. LECTURES FOR ALL BATCHES: Lectures listed on a day apply to ALL batches. So map every Lecture listed for a specific day into the `daily_schedule`.\n"
+            "2. BATCH SPECIFIC PRACTICALS: ONLY map the Practicals to the `daily_schedule` that correspond to the user's specific Batch and Division.\n"
+            "3. DURATION WEIGHTING: All Practicals (and Labs) are 2 hours long. You MUST add TWO identical entry objects for any Practical in the `daily_schedule` array for that day! Lectures are 1 hour, so add ONE entry for lectures.\n"
+            "4. WEB DEVELOPMENT RULE: There are NO lectures for Web Development, ONLY practicals! Do NOT generate or map a Web Development Lecture.\n"
         )
         
         if division or branch:
@@ -421,6 +424,12 @@ def upload_timetable():
             s_type = sub.get('subject_type', 'Lecture')
             s_batch = sub.get('batch', '')
             exclude = sub.get('exclude_attendance', False)
+            
+            # Hardcoded fixes
+            if 'Web Development' in s_name and s_type == 'Lecture':
+                continue
+            if 'Web Development' in s_name and s_type == 'Practical':
+                s_name = 'Web Development Lab'
             
             # Upsert ensures we don't overwrite attended_classes if it already exists!
             res = subjects_collection.update_one(

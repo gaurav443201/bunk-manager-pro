@@ -1,4 +1,5 @@
 # Bunk Manager Pro
+**Created by Gaurav Navghare**
 
 A modern, full-stack educational web application designed to help students track their attendance and manage their bunks effectively. Built with Flask, MongoDB, and Tailwind CSS.
 
