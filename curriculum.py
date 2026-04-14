@@ -21,8 +21,6 @@ def get_curriculum(division, batch):
         }
 
     def prac(day, name):
-        # Add twice for 2-hour duration weighting
-        daily_schedule[day].append({"subject_name": name, "subject_type": "Practical"})
         daily_schedule[day].append({"subject_name": name, "subject_type": "Practical"})
         subjects_dict[(name, "Practical", batch)] = {
             "subject_name": name, "subject_type": "Practical",
