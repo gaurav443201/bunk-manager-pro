@@ -338,29 +338,35 @@ def sync_timetable():
     try:
         extracted_subjects, daily_schedule = get_curriculum(division, batch)
 
-        added_count = 0
-        for sub in extracted_subjects:
-            s_name = sub['subject_name']
-            s_type = sub['subject_type']
-            s_batch = sub['batch']
-            res = subjects_collection.update_one(
-                {'user_id': user_id, 'subject_name': s_name, 'subject_type': s_type, 'batch': s_batch},
-                {'$setOnInsert': {'exclude_attendance': False, 'total_classes': 0, 'attended_classes': 0}},
-                upsert=True
-            )
-            if res.upserted_id:
-                added_count += 1
+        # Wipe all existing subjects so stale data never blocks fresh sync
+        subjects_collection.delete_many({'user_id': user_id})
 
-        context = f"SE-{division} Division, Batch {batch} master timetable synced."
+        # Bulk insert all subjects fresh
+        docs = []
+        for sub in extracted_subjects:
+            docs.append({
+                'user_id': user_id,
+                'subject_name': sub['subject_name'],
+                'subject_type': sub['subject_type'],
+                'batch': sub['batch'],
+                'exclude_attendance': False,
+                'total_classes': 0,
+                'attended_classes': 0
+            })
+        if docs:
+            subjects_collection.insert_many(docs)
+
+        context = f"SE-{division} Division, Batch {batch} — master timetable synced."
         db.users.update_one(
             {'_id': user_id},
             {'$set': {'timetable_context': context, 'daily_schedule': daily_schedule}},
             upsert=True
         )
 
-        return jsonify({'success': True, 'message': f'Timetable synced! {added_count} new subjects added.', 'data': context})
+        return jsonify({'success': True, 'message': f'Timetable synced! {len(docs)} subjects loaded.', 'data': context})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 
 
