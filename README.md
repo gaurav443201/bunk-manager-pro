@@ -49,27 +49,5 @@ A modern, full-stack educational web application designed to help students track
 
 ---
 
-## ☁️ Deployment Guide (Render)
-
-Deploying to Render requires a Web Service and a free MongoDB Atlas cloud cluster.
-
-### 1. Database Setup
-1. Create a free account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register).
-2. Create a Free Cluster (M0). 
-3. Under **Network Access**, ensure you click **Allow Access From Anywhere** (`0.0.0.0/0`), otherwise Render will be blocked from connecting.
-4. Go to **Database Access** and create a Database User and save the password.
-5. Click **Connect** on your cluster, select **Drivers** (Python), and copy the provided `MONGO_URI` connection string.
-
-### 2. Render Web Service Deployment
-1. Create a [Render](https://render.com) account and connect your GitHub.
-2. Click **"New"** -> **"Web Service"**.
-3. Select your repository.
-4. In the settings, configure the following:
-   - **Environment:** `Python 3`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `gunicorn app:app`
-5. Expand **Advanced** -> **Environment Variables** and add:
-   - `SECRET_KEY` = (generate a random string)
-   - `MONGO_URI` = (paste your MongoDB connection string here)
 6. Click **Create Web Service**. 
 7. Render will build and deploy the app! You'll receive a live `.onrender.com` URL.
