@@ -49,5 +49,3 @@ A modern, full-stack educational web application designed to help students track
 
 ---
 
-6. Click **Create Web Service**. 
-7. Render will build and deploy the app! You'll receive a live `.onrender.com` URL.
